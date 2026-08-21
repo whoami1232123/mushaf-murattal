@@ -1,0 +1,42 @@
+name: Deploy web app to GitHub Pages
+
+# Publishes the app's static files (index.html, css/, js/, icons/, manifest.json,
+# sw.js) so it is reachable at https://<user>.github.io/<repo>/ over HTTPS - the
+# service worker and geolocation both require a secure origin, and this is what
+# lets an iPhone install it as a home-screen app from Safari.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stage only the web app's static files
+        run: |
+          mkdir _site
+          cp index.html manifest.json sw.js _site/
+          cp -r css js icons _site/
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
