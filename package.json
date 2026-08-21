@@ -1,0 +1,26 @@
+{
+  "name": "mushaf-murattal",
+  "version": "1.0.0",
+  "private": true,
+  "description": "المصحف المرتل - تجويد وحفظ",
+  "type": "module",
+  "scripts": {
+    "serve": "npx --yes http-server . -p 8000 -c-1",
+    "prepare:www": "node scripts/prepare-www.mjs",
+    "android:add": "npm run prepare:www && npx cap add android",
+    "ios:add": "npm run prepare:www && npx cap add ios",
+    "sync": "npm run prepare:www && npx cap sync",
+    "android:open": "npm run sync && npx cap open android",
+    "ios:open": "npm run sync && npx cap open ios"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/cli": "^6.2.0",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/ios": "^6.2.0"
+  },
+  "dependencies": {
+    "@capacitor/geolocation": "^6.1.1",
+    "@capacitor/local-notifications": "^6.1.3"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "appId": "com.mushaf.murattal",
+  "appName": "المصحف المرتل",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "always"
+  },
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#0a4f42",
+      "showSpinner": false
+    }
+  }
+}

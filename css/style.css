@@ -1,0 +1,1158 @@
+:root {
+  --bg: #f7f3ea;
+  --panel: #ffffff;
+  --ink: #2b2417;
+  --muted: #7a715e;
+  --accent: #0f6d5c;
+  --accent-dark: #0a4f42;
+  --border: #e3d9c2;
+  --highlight: #fff3c4;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--accent-dark);
+  color: #fff;
+}
+
+.brand-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.install-btn {
+  background: #fff;
+  color: var(--accent-dark);
+  border: none;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 8px 14px;
+  white-space: nowrap;
+}
+
+.tab-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.4);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.95rem;
+  transition: background .15s;
+}
+.tab-btn:hover { background: rgba(255,255,255,0.15); }
+.tab-btn.active { background: #fff; color: var(--accent-dark); font-weight: 700; }
+
+#app { max-width: 1100px; margin: 0 auto; padding: 16px; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.nav-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.nav-group { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--muted); }
+.nav-group.nav-buttons { flex-direction: row; align-self: flex-end; }
+.nav-group.chk { flex-direction: row; }
+
+select, input[type="number"] {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: .95rem;
+  background: #fff;
+  color: var(--ink);
+}
+
+label.chk { display: flex; align-items: center; gap: 6px; flex-direction: row; font-size: .9rem; }
+
+button {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: .9rem;
+  color: var(--ink);
+}
+button:hover { background: #f2ede0; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.primary:hover { background: var(--accent-dark); }
+
+.mushaf-page, .quiz-box {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 30px;
+  font-family: 'Amiri Quran', 'Scheherazade New', serif;
+  font-size: 1.9rem;
+  line-height: 3.1;
+  text-align: justify;
+  direction: rtl;
+}
+
+.loading { font-family: 'Cairo', sans-serif; font-size: 1rem; color: var(--muted); text-align: center; }
+
+.ayah { transition: background .2s; border-radius: 6px; padding: 2px 3px; }
+.ayah.playing { background: var(--highlight); }
+.ayah-end {
+  font-family: 'Cairo', sans-serif;
+  font-size: 1rem;
+  color: var(--accent);
+  margin: 0 2px;
+  vertical-align: middle;
+}
+
+/* Memorization test mode: blur the text rather than hide it, so the line layout
+   stays stable. Only `.ayah-text` is blurred, leaving the ayah number sharp. */
+.hidden-text .ayah { cursor: pointer; }
+.hidden-text .ayah-text {
+  filter: blur(7px);
+  user-select: none;
+  transition: filter .18s;
+}
+/* Touch screens have no hover, so tapping sets `.revealed` to peek at an ayah. */
+.hidden-text .ayah.revealed .ayah-text,
+.hidden-text .ayah.playing .ayah-text {
+  filter: none;
+  user-select: auto;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-top: 14px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: .85rem;
+}
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.swatch { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+
+.mem-status { padding: 6px 4px; color: var(--accent-dark); font-weight: 600; min-height: 1.4em; }
+
+.quiz-score { font-weight: 700; color: var(--accent-dark); }
+
+.quiz-q { text-align: center; }
+.quiz-label { font-family: 'Cairo', sans-serif; font-size: 1rem; color: var(--muted); margin-bottom: 10px; }
+.quiz-stem { font-size: 2rem; margin-bottom: 20px; }
+.quiz-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.quiz-opt {
+  font-family: 'Amiri Quran', serif;
+  font-size: 1.3rem;
+  padding: 14px;
+  border-radius: 10px;
+  background: #faf7ef;
+}
+.quiz-opt.correct { background: #d7f4dd; border-color: #4caf50; }
+.quiz-opt.wrong { background: #fbdada; border-color: #e53935; }
+.quiz-feedback { margin-top: 16px; font-family: 'Cairo', sans-serif; font-weight: 700; }
+.quiz-feedback.ok { color: #2e7d32; }
+.quiz-feedback.bad { color: #c62828; }
+
+.lessons-wrap { display: flex; gap: 16px; }
+.lessons-list {
+  flex: 0 0 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  height: fit-content;
+}
+.lesson-item {
+  text-align: right;
+  border: none;
+  background: transparent;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-family: 'Cairo', sans-serif;
+}
+.lesson-item:hover { background: #f2ede0; }
+.lesson-item.active { background: var(--accent); color: #fff; font-weight: 700; }
+
+.lesson-content {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px 26px;
+  direction: rtl;
+  text-align: right;
+  line-height: 2.1;
+}
+.lesson-content h2 { color: var(--accent-dark); margin-top: 0; }
+.lesson-content h4 { margin-bottom: 4px; }
+.lesson-content p { font-size: 1.05rem; }
+.lesson-content span[dir="rtl"] { font-family: 'Amiri Quran', serif; font-size: 1.3rem; }
+
+.footer {
+  background: var(--accent-dark);
+  color: #fff;
+  padding: 0;
+  text-align: center;
+}
+
+.status-line {
+  padding: 8px 16px;
+  font-size: .85rem;
+  min-height: 1.4em;
+}
+
+@media (max-width: 900px) {
+  .nav-bar {
+    gap: 10px;
+    padding: 10px;
+  }
+  .nav-group {
+    font-size: 0.8rem;
+  }
+  select, input[type="number"], button {
+    font-size: 0.85rem;
+    padding: 5px 8px;
+  }
+}
+
+@media (max-width: 720px) {
+  .topbar {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .brand { font-size: 1rem; }
+
+  .tabs {
+    width: 100%;
+    gap: 4px;
+  }
+  .tab-btn {
+    flex: 1;
+    font-size: 0.75rem;
+    padding: 6px 8px;
+    border-radius: 4px;
+  }
+
+  .nav-bar {
+    gap: 8px;
+    padding: 8px;
+    flex-direction: column;
+  }
+  .nav-group {
+    font-size: 0.75rem;
+    width: 100%;
+  }
+  .nav-group select,
+  .nav-group input[type="number"] {
+    width: 100%;
+  }
+  .nav-buttons {
+    flex-direction: row !important;
+    gap: 4px !important;
+  }
+  .nav-buttons button {
+    flex: 1;
+    font-size: 0.75rem;
+    padding: 6px 6px;
+  }
+
+  .mushaf-page, .quiz-box {
+    font-size: 1.3rem;
+    line-height: 2.6;
+    padding: 12px;
+  }
+
+  .ayah-end {
+    font-size: 0.9rem;
+  }
+
+  .quiz-options {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .quiz-stem {
+    font-size: 1.6rem;
+  }
+  .quiz-opt {
+    font-size: 1.1rem;
+    padding: 10px;
+  }
+
+  .lessons-wrap {
+    flex-direction: column;
+  }
+  .lessons-list {
+    flex: none;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 2px;
+    padding: 6px;
+  }
+  .lesson-item {
+    font-size: 0.75rem;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+  .lesson-content {
+    padding: 12px 14px;
+    font-size: 0.95rem;
+  }
+  .lesson-content h2 {
+    font-size: 1.1rem;
+  }
+  .lesson-content h4 {
+    font-size: 0.95rem;
+  }
+  .lesson-content p {
+    font-size: 0.95rem;
+  }
+  .lesson-content span[dir="rtl"] {
+    font-size: 1.1rem;
+  }
+
+  .legend {
+    gap: 6px 10px;
+    padding: 8px;
+    font-size: 0.75rem;
+  }
+  .swatch {
+    width: 12px;
+    height: 12px;
+  }
+
+  .statusbar {
+    font-size: 0.75rem;
+    padding: 6px 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand { font-size: 0.9rem; }
+
+  .tab-btn {
+    font-size: 0.65rem;
+    padding: 5px 6px;
+  }
+
+  .mushaf-page, .quiz-box {
+    font-size: 1.1rem;
+    line-height: 2.2;
+    padding: 8px;
+  }
+
+  .quiz-stem {
+    font-size: 1.4rem;
+  }
+
+  .legend-item {
+    font-size: 0.65rem;
+  }
+}
+
+/* ===================== Added features ===================== */
+
+.tip {
+  font-size: .85rem;
+  color: var(--muted);
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  background: #fffdf6;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.hint { font-size: .75rem; color: var(--muted); font-weight: 400; }
+
+.inline-row { display: flex; align-items: center; gap: 6px; }
+.inline-row input[type="number"] { width: 78px; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+.card h3 { margin: 0 0 8px; color: var(--accent-dark); }
+
+button.danger { background: #c62828; color: #fff; border-color: #c62828; }
+button.danger:hover { background: #a01f1f; }
+
+select.wide { width: 100%; max-width: 420px; }
+
+.settings-card .cache-stat {
+  font-weight: 600;
+  color: var(--accent-dark);
+  margin: 10px 0;
+}
+
+/* ---------- Quiz additions ---------- */
+.tajweed-sample {
+  display: block;
+  font-family: 'Amiri Quran', serif;
+  line-height: 2.6;
+  margin-bottom: 10px;
+}
+.tajweed-target {
+  font-family: 'Cairo', sans-serif;
+  font-size: .95rem;
+  color: var(--muted);
+}
+.tajweed-target span { font-family: 'Amiri Quran', serif; font-size: 1.4rem; font-weight: 700; }
+.quiz-hint {
+  margin-top: 12px;
+  padding: 10px;
+  background: #f3f8f6;
+  border-right: 3px solid var(--accent);
+  border-radius: 6px;
+  font-family: 'Cairo', sans-serif;
+  font-size: .9rem;
+  text-align: right;
+}
+
+/* ---------- Adhkar ---------- */
+.set-btn { border-radius: 20px; }
+.set-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.adhkar-note {
+  color: var(--muted);
+  font-size: .9rem;
+  margin: 0 0 12px;
+}
+.adhkar-list { display: flex; flex-direction: column; gap: 10px; }
+.dhikr-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  transition: opacity .2s, border-color .2s;
+}
+.dhikr-card.done { opacity: .55; border-color: var(--accent); }
+.dhikr-text {
+  font-family: 'Amiri Quran', serif;
+  font-size: 1.35rem;
+  line-height: 2.3;
+  margin: 0 0 12px;
+  text-align: justify;
+}
+.dhikr-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.dhikr-src { font-size: .78rem; color: var(--muted); }
+.dhikr-count {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  min-width: 90px;
+  font-weight: 700;
+}
+.dhikr-count:disabled { background: #9e9e9e; border-color: #9e9e9e; color: #fff; }
+
+/* ---------- Worship: prayer times + qibla ---------- */
+.worship-info {
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 14px;
+  font-size: .9rem;
+}
+.worship-info.bad { border-color: #e53935; color: #c62828; }
+
+.worship-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.hijri { color: var(--muted); font-size: .9rem; margin-bottom: 6px; }
+.next-prayer { font-weight: 700; color: var(--accent-dark); margin-bottom: 12px; }
+.prayer-list { display: flex; flex-direction: column; gap: 4px; }
+.prayer-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #faf7ef;
+  font-size: 1rem;
+}
+.prayer-row.next { background: var(--accent); color: #fff; font-weight: 700; }
+.prayer-name { font-weight: 600; }
+.prayer-time { font-variant-numeric: tabular-nums; }
+
+.compass { display: flex; justify-content: center; margin: 10px 0; }
+.compass-dial {
+  position: relative;
+  width: 190px; height: 190px;
+  border-radius: 50%;
+  border: 3px solid var(--accent-dark);
+  background: radial-gradient(circle, #fff 55%, #f2ede0 100%);
+}
+.compass-dial .dir {
+  position: absolute;
+  font-weight: 700;
+  font-size: .85rem;
+  color: var(--muted);
+}
+.compass-dial .n { top: 6px; left: 50%; transform: translateX(-50%); color: #c62828; }
+.compass-dial .s { bottom: 6px; left: 50%; transform: translateX(-50%); }
+.compass-dial .e { left: 8px; top: 50%; transform: translateY(-50%); }
+.compass-dial .w { right: 8px; top: 50%; transform: translateY(-50%); }
+.needle {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 0; height: 0;
+  font-size: 2rem;
+  line-height: 0;
+  transform-origin: center center;
+  transition: transform .25s ease-out;
+  display: flex; align-items: center; justify-content: center;
+}
+/* The emoji is pushed up the dial so rotation reads as a pointer. */
+.needle::before {
+  content: '';
+  position: absolute;
+  width: 3px; height: 74px;
+  background: linear-gradient(to top, transparent, var(--accent));
+  bottom: 0;
+}
+.qibla-angle { text-align: center; font-weight: 700; color: var(--accent-dark); }
+.compass-hint { text-align: center; font-size: .78rem; color: var(--muted); margin-top: 6px; }
+
+/* ---------- Ayah action sheet ---------- */
+.sheet-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 40;
+}
+.ayah-sheet {
+  position: fixed;
+  z-index: 41;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: min(680px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  padding: 16px 18px 22px;
+  box-shadow: 0 -8px 30px rgba(0,0,0,.2);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.sheet-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 10px;
+  color: var(--accent-dark);
+}
+.sheet-close { border: none; background: transparent; font-size: 1.2rem; cursor: pointer; }
+.sheet-ayah {
+  font-family: 'Amiri Quran', serif;
+  font-size: 1.6rem;
+  line-height: 2.6;
+  text-align: justify;
+  margin-bottom: 14px;
+}
+.sheet-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.rep-inline { display: flex; align-items: center; gap: 5px; font-size: .85rem; }
+.rep-inline input { width: 62px; }
+.sheet-status { margin-top: 8px; font-size: .85rem; color: var(--accent-dark); min-height: 1.2em; }
+.sheet-tafsir {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: #faf7ef;
+  border-radius: 10px;
+  line-height: 2;
+  font-size: 1rem;
+  text-align: justify;
+}
+
+@media (max-width: 720px) {
+  .worship-grid { grid-template-columns: 1fr; }
+  .compass-dial { width: 160px; height: 160px; }
+  .dhikr-text { font-size: 1.15rem; line-height: 2.1; }
+  .sheet-ayah { font-size: 1.3rem; line-height: 2.3; }
+  .ayah-sheet { max-height: 88vh; }
+  .set-btn { font-size: .75rem; padding: 6px 10px; }
+  .tip { font-size: .75rem; }
+}
+
+/* ---------- Search ---------- */
+.search-wrap { position: relative; margin-bottom: 12px; }
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+.search-icon { font-size: 1rem; opacity: .7; }
+.search-bar input[type="search"] {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+  padding: 4px;
+  min-width: 0;
+}
+.search-bar input[type="search"]::placeholder { color: var(--muted); }
+
+.search-results {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 62vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.15);
+  padding: 8px;
+}
+.search-section { padding: 6px 4px 10px; }
+.search-section h4 {
+  margin: 0 0 8px;
+  font-size: .82rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.search-jumps { display: flex; flex-wrap: wrap; gap: 6px; }
+.search-jump {
+  background: #faf7ef;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-family: 'Cairo', sans-serif;
+  font-size: .9rem;
+  cursor: pointer;
+}
+.search-jump:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.search-meta { font-size: .72rem; opacity: .7; }
+
+.search-hit {
+  display: block;
+  width: 100%;
+  text-align: right;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 10px 6px;
+  cursor: pointer;
+}
+.search-hit:last-child { border-bottom: none; }
+.search-hit:hover { background: #f6f2e6; }
+.search-hit-ref {
+  display: block;
+  font-family: 'Cairo', sans-serif;
+  font-size: .75rem;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.search-hit-text {
+  display: block;
+  font-family: 'Amiri Quran', serif;
+  font-size: 1.15rem;
+  line-height: 2;
+  color: var(--ink);
+}
+.search-hit-text mark {
+  background: var(--highlight);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.search-loading, .search-empty {
+  font-family: 'Cairo', sans-serif;
+  font-size: .85rem;
+  color: var(--muted);
+  padding: 8px 4px;
+}
+
+/* The ayah a search landed on, distinct from the one currently playing. */
+.ayah.found { background: #d9ecff; box-shadow: 0 0 0 2px #7fb3ec inset; border-radius: 6px; }
+
+@media (max-width: 720px) {
+  .search-bar { padding: 6px 8px; gap: 5px; }
+  .search-bar input[type="search"] { font-size: .85rem; }
+  .search-bar button { font-size: .75rem; padding: 6px 8px; }
+  .search-results { max-height: 55vh; }
+  .search-hit-text { font-size: 1rem; line-height: 1.9; }
+  .search-jump { font-size: .78rem; padding: 6px 9px; }
+}
+
+/* ---------- Global bar (reciter + cache), visible on every tab ---------- */
+.global-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 8px 16px;
+  background: #eee8da;
+  border-bottom: 1px solid var(--border);
+}
+.gb-item { display: flex; align-items: center; gap: 6px; font-size: .82rem; }
+.gb-label { color: var(--muted); white-space: nowrap; }
+.gb-item select { font-size: .85rem; padding: 5px 8px; max-width: 260px; }
+.gb-cache { margin-inline-start: auto; }
+.gb-stat {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-dark);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.gb-cache button { padding: 5px 10px; font-size: .78rem; }
+
+@media (max-width: 720px) {
+  .global-bar { padding: 6px 10px; gap: 6px 10px; }
+  .gb-item { font-size: .72rem; }
+  .gb-item select { font-size: .75rem; padding: 4px 6px; flex: 1; min-width: 0; max-width: none; }
+  .gb-item:first-child { flex: 1 1 100%; }
+  .gb-cache { margin-inline-start: 0; width: 100%; justify-content: space-between; }
+  .gb-cache button { font-size: .7rem; padding: 4px 8px; }
+}
+
+/* ---------- Reading layout: text + sticky legend sidebar ---------- */
+.read-layout {
+  display: grid;
+  grid-template-columns: 1fr 210px;
+  gap: 14px;
+  align-items: start;
+}
+.read-layout .mushaf-page { margin: 0; }
+
+.legend-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  font-size: .8rem;
+  /* Follows the reader down the page; offset clears the sticky app header. */
+  position: sticky;
+  top: 150px;
+  max-height: calc(100vh - 170px);
+  overflow-y: auto;
+}
+.legend-side::before {
+  content: 'ألوان التجويد';
+  font-weight: 700;
+  color: var(--accent-dark);
+  font-size: .82rem;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.legend-side .legend-item { display: flex; align-items: center; gap: 7px; line-height: 1.5; }
+.legend-side .swatch { width: 13px; height: 13px; border-radius: 4px; flex: none; }
+
+/* ---------- Ayah affordance: pointer + hover feedback ---------- */
+.mushaf-page .ayah { cursor: pointer; }
+.mushaf-page .ayah:hover { background: #f3efe2; }
+.hidden-text .ayah:hover { background: transparent; }
+
+/* ---------- Lesson examples with audio ---------- */
+.lesson-examples { margin-top: 22px; border-top: 2px solid var(--border); padding-top: 16px; }
+.lesson-examples h3 { color: var(--accent-dark); margin: 0 0 4px; font-size: 1.05rem; }
+.lesson-example {
+  background: #faf7ef;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  transition: border-color .2s, background .2s;
+}
+.lesson-example.playing { border-color: var(--accent); background: #f0f7f4; }
+.ex-ayah {
+  font-family: 'Amiri Quran', serif;
+  font-size: 1.5rem;
+  line-height: 2.5;
+  text-align: center;
+  margin-bottom: 10px;
+}
+.ex-foot {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 8px;
+}
+.ex-ref { font-size: .8rem; color: var(--accent); font-weight: 600; }
+.ex-actions { display: flex; gap: 6px; }
+.ex-actions button { font-size: .8rem; padding: 6px 11px; }
+.ex-note {
+  margin: 10px 0 0;
+  font-size: .88rem;
+  line-height: 1.9;
+  color: var(--ink);
+  background: #fff;
+  border-right: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 8px 11px;
+}
+
+/* ---------- Prayer time tuning + alerts ---------- */
+.calc-info {
+  font-size: .78rem;
+  color: var(--muted);
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+.prayer-adjust { display: flex; align-items: center; gap: 3px; }
+.tune-btn {
+  width: 22px; height: 22px;
+  padding: 0; line-height: 1;
+  border-radius: 5px;
+  font-size: .85rem;
+  opacity: .55;
+}
+.prayer-row:hover .tune-btn { opacity: 1; }
+.prayer-row.next .tune-btn { background: rgba(255,255,255,.85); border-color: transparent; }
+.tune-val { font-size: .7rem; min-width: 20px; text-align: center; font-variant-numeric: tabular-nums; }
+
+.alerts-card .alert-controls {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0;
+}
+.alerts-next {
+  font-weight: 600;
+  color: var(--accent-dark);
+  font-size: .88rem;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.quiz-pct { font-size: .78rem; color: var(--muted); font-weight: 600; margin-inline-start: 6px; }
+
+@media (max-width: 900px) {
+  /* Below this width the sidebar would squeeze the text, so it moves above it. */
+  .read-layout { grid-template-columns: 1fr; }
+  .legend-side {
+    position: static;
+    max-height: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    order: -1;
+  }
+  .legend-side::before { flex: 1 1 100%; border-bottom: none; padding-bottom: 0; }
+  .ex-ayah { font-size: 1.2rem; line-height: 2.2; }
+  .ex-actions button { font-size: .72rem; padding: 5px 8px; }
+}
+
+.alerts-card { margin-top: 14px; }
+
+/* Inline rule examples sit inside the lesson flow, under the rule they explain. */
+.lesson-content .lesson-example { margin: 10px 0 20px; }
+.ex-loading { font-size: .85rem; color: var(--muted); padding: 8px; }
+.note-inline {
+  font-size: .85rem;
+  color: var(--muted);
+  background: #faf7ef;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+/* ---------- Mushaf sheet: framed page with a turn animation ---------- */
+.mushaf-book {
+  /* Perspective on the parent is what makes the child's rotateY read as a page
+     lifting off the spine rather than a flat squash. */
+  perspective: 1800px;
+  perspective-origin: 50% 40%;
+}
+
+.mushaf-sheet {
+  background:
+    linear-gradient(#fdfaf1, #fdfaf1) padding-box,
+    linear-gradient(160deg, #c9a227, #8d6b1d 40%, #c9a227 70%, #8d6b1d) border-box;
+  border: 3px solid transparent;
+  border-radius: 10px;
+  padding: 0;
+  box-shadow: 0 10px 28px rgba(0,0,0,.16), inset 0 0 0 1px rgba(201,162,39,.35);
+  transform-origin: right center;   /* RTL: leaves are bound on the right */
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+
+/* Inner hairline frame, the way printed mushaf pages are ruled. */
+.mushaf-sheet::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border: 1px solid rgba(141,107,29,.45);
+  border-radius: 6px;
+  pointer-events: none;
+}
+.read-layout .mushaf-book { position: relative; }
+.mushaf-sheet { position: relative; }
+
+.sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px 8px;
+  font-family: 'Cairo', sans-serif;
+  font-size: .82rem;
+  font-weight: 700;
+  color: #7a5c17;
+  border-bottom: 1px solid rgba(141,107,29,.3);
+  margin: 6px 12px 0;
+}
+.sheet-surah { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-juz { white-space: nowrap; opacity: .85; }
+
+/* The text body itself sits inside the frame, so it drops its own card styling. */
+.mushaf-sheet .mushaf-page {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 18px 26px 10px;
+  min-height: 320px;
+}
+
+.sheet-page-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px 14px;
+  margin: 0 12px;
+  border-top: 1px solid rgba(141,107,29,.3);
+}
+.page-medallion {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 46px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1.5px solid #a8821f;
+  border-radius: 999px;
+  background: #fffdf4;
+  color: #7a5c17;
+  font-family: 'Cairo', sans-serif;
+  font-weight: 700;
+  font-size: .9rem;
+}
+.page-arrow {
+  width: 38px; height: 34px;
+  padding: 0;
+  border-radius: 8px;
+  border-color: rgba(141,107,29,.45);
+  background: #fffdf4;
+  color: #7a5c17;
+  font-size: 1rem;
+  line-height: 1;
+}
+.page-arrow:hover { background: #f3e9cd; }
+
+/* Turn: rotate the leaf away, swap the text edge-on, rotate the new one in. */
+@keyframes flipOutNext { to { transform: rotateY(-88deg); opacity: .45; } }
+@keyframes flipInNext  { from { transform: rotateY(88deg); opacity: .45; } }
+@keyframes flipOutPrev { to { transform: rotateY(88deg); opacity: .45; } }
+@keyframes flipInPrev  { from { transform: rotateY(-88deg); opacity: .45; } }
+
+.mushaf-sheet.flip-out-next { animation: flipOutNext var(--flip-ms, 240ms) ease-in forwards; }
+.mushaf-sheet.flip-in-next  { animation: flipInNext  var(--flip-ms, 240ms) ease-out; }
+.mushaf-sheet.flip-out-prev { animation: flipOutPrev var(--flip-ms, 240ms) ease-in forwards; }
+.mushaf-sheet.flip-in-prev  { animation: flipInPrev  var(--flip-ms, 240ms) ease-out; }
+
+/* While riffling through many leaves the text is a blur, as it would be in hand. */
+.mushaf-sheet.riffling .mushaf-page { filter: blur(1.5px); opacity: .75; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mushaf-sheet.flip-out-next, .mushaf-sheet.flip-in-next,
+  .mushaf-sheet.flip-out-prev, .mushaf-sheet.flip-in-prev { animation: none; }
+}
+
+@media (max-width: 720px) {
+  .mushaf-sheet .mushaf-page { padding: 12px 14px 8px; min-height: 240px; }
+  .sheet-header { padding: 10px 12px 6px; margin: 4px 8px 0; font-size: .72rem; }
+  .sheet-footer { margin: 0 8px; gap: 12px; }
+  .mushaf-sheet::before { inset: 5px; }
+  .page-arrow { width: 34px; height: 32px; }
+}
+
+/* ---------- Open-mushaf spread: two leaves side by side ---------- */
+.mushaf-spread {
+  display: flex;
+  gap: 0;
+  align-items: stretch;
+  transform-origin: right center;
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
+/* RTL puts the first child on the right, which is the earlier page - matching
+   how an Arabic book is read. The two leaves meet at a shared spine. */
+.mushaf-spread > .mushaf-sheet { flex: 1 1 0; min-width: 0; }
+.mushaf-spread > .mushaf-sheet:first-child { border-radius: 10px; }
+.mushaf-spread:has(> .mushaf-sheet:not([hidden]) ~ .mushaf-sheet:not([hidden])) > .mushaf-sheet:first-child {
+  border-top-left-radius: 2px;
+  border-bottom-left-radius: 2px;
+}
+.mushaf-spread > .mushaf-sheet:last-child:not([hidden]) {
+  border-top-right-radius: 2px;
+  border-bottom-right-radius: 2px;
+  /* Shading at the spine, as the paper curves into the binding. */
+  box-shadow: 0 10px 28px rgba(0,0,0,.16), inset 8px 0 18px -10px rgba(120,90,20,.5);
+}
+.mushaf-spread > .mushaf-sheet:first-child:not(:last-child) {
+  box-shadow: 0 10px 28px rgba(0,0,0,.16), inset -8px 0 18px -10px rgba(120,90,20,.5);
+}
+
+/* The animation classes now live on the spread, not a single sheet. */
+.mushaf-spread.flip-out-next { animation: flipOutNext var(--flip-ms, 240ms) ease-in forwards; }
+.mushaf-spread.flip-in-next  { animation: flipInNext  var(--flip-ms, 240ms) ease-out; }
+.mushaf-spread.flip-out-prev { animation: flipOutPrev var(--flip-ms, 240ms) ease-in forwards; }
+.mushaf-spread.flip-in-prev  { animation: flipInPrev  var(--flip-ms, 240ms) ease-out; }
+.mushaf-spread.riffling .mushaf-page { filter: blur(1.5px); opacity: .75; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mushaf-spread.flip-out-next, .mushaf-spread.flip-in-next,
+  .mushaf-spread.flip-out-prev, .mushaf-spread.flip-in-prev { animation: none; }
+}
+
+/* ---------- Page navigation under the book ---------- */
+.book-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 12px;
+}
+.book-nav-label {
+  font-family: 'Cairo', sans-serif;
+  font-weight: 700;
+  color: #7a5c17;
+  min-width: 90px;
+  text-align: center;
+  font-size: .9rem;
+}
+.page-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px; height: 38px;
+  padding: 0;
+}
+.page-arrow svg { width: 20px; height: 20px; display: block; }
+
+@media (max-width: 900px) {
+  /* Two leaves do not fit; the left one is hidden and the layout falls back
+     to a single page. */
+  .mushaf-spread > .mushaf-sheet:last-child:not(:first-child) { display: none; }
+  .mushaf-spread > .mushaf-sheet:first-child { border-radius: 10px; }
+}
+
+/* ---------- Segmented control (one page / two pages) ---------- */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  background: #fff;
+}
+.seg-btn {
+  border: none;
+  border-radius: 0;
+  background: #fff;
+  padding: 7px 13px;
+  font-size: .85rem;
+  white-space: nowrap;
+}
+.seg-btn + .seg-btn { border-inline-start: 1px solid var(--border); }
+.seg-btn:hover { background: #f2ede0; }
+.seg-btn.active { background: var(--accent); color: #fff; font-weight: 700; }
+
+@media (max-width: 720px) {
+  .segmented { width: 100%; }
+  .seg-btn { flex: 1; font-size: .75rem; padding: 6px 8px; }
+}
+
+/* ---------- Surah boundary: name banner + Basmalah ---------- */
+.surah-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 18px 0 10px;
+  padding: 10px 18px;
+  background: linear-gradient(#fdfaf1, #fdfaf1) padding-box,
+              linear-gradient(120deg, #c9a227, #8d6b1d 50%, #c9a227) border-box;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  font-family: 'Cairo', sans-serif;
+  direction: rtl;
+}
+.mushaf-page .surah-banner:first-child { margin-top: 0; }
+.surah-banner-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #7a5c17;
+}
+.surah-banner-meta {
+  font-size: .78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.basmalah {
+  text-align: center;
+  font-family: 'Amiri Quran', serif;
+  font-size: 1.7rem;
+  color: var(--ink);
+  margin: 4px 0 14px;
+}
+.no-tajweed .basmalah,
+.hidden-text .basmalah { color: inherit; }
+
+@media (max-width: 720px) {
+  .surah-banner { padding: 8px 12px; margin: 14px 0 8px; flex-wrap: wrap; }
+  .surah-banner-name { font-size: 1rem; }
+  .surah-banner-meta { font-size: .7rem; }
+  .basmalah { font-size: 1.35rem; margin: 2px 0 10px; }
+}

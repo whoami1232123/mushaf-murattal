@@ -1,0 +1,114 @@
+name: Build mobile apps
+
+# Builds an installable Android APK in the cloud, so nothing needs to be
+# installed locally. Run it from the repo's Actions tab, then download the APK
+# from the run's Artifacts section.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Stage web assets
+        run: npm run prepare:www
+
+      - name: Create Android project
+        run: npx cap add android
+
+      - name: Grant location + internet permissions
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          python3 - "$MANIFEST" <<'PY'
+          import sys, re
+          path = sys.argv[1]
+          xml = open(path, encoding='utf-8').read()
+          perms = [
+              'android.permission.INTERNET',
+              'android.permission.ACCESS_COARSE_LOCATION',
+              'android.permission.ACCESS_FINE_LOCATION',
+          ]
+          add = ''.join(
+              f'\n    <uses-permission android:name="{p}" />'
+              for p in perms if p not in xml
+          )
+          if add:
+              xml = xml.replace('</manifest>', f'{add}\n</manifest>')
+              open(path, 'w', encoding='utf-8').write(xml)
+              print('added:', add.strip())
+          else:
+              print('permissions already present')
+          PY
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mushaf-android-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  ios:
+    name: iOS project (unsigned)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Stage web assets
+        run: npm run prepare:www
+
+      - name: Create iOS project
+        run: npx cap add ios
+
+      - name: Declare location usage
+        run: |
+          PLIST=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'لتحديد اتجاه القبلة ومواقيت الصلاة حسب موقعك'" "$PLIST" || true
+
+      - name: Sync Capacitor
+        run: npx cap sync ios
+
+      # Building an installable .ipa requires an Apple Developer signing identity.
+      # This step only proves the project compiles; it produces no installable file.
+      - name: Compile (no signing)
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace -scheme App \
+            -sdk iphonesimulator -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO build | tail -20
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mushaf-ios-project
+          path: ios

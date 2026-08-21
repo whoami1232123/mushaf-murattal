@@ -1,0 +1,14 @@
+node_modules/
+www/
+android/
+ios/
+dist/
+desktop/build/
+desktop/_webapp/
+desktop/*.spec
+__pycache__/
+installer/output/
+installer/*.iss.bak
+installer/stage/
+installer/*.rar
+.claude/

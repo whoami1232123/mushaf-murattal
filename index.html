@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>المصحف المرتل - تجويد وحفظ</title>
+<meta name="description" content="مصحف مرتل بألوان التجويد برواية حفص، مع الحفظ والترديد والاختبار ودروس التجويد والأذكار ومواقيت الصلاة والقبلة">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a4f42">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="المصحف المرتل">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- Header and global bar stick together as one unit; two separately-sticky
+     elements at top:0 would overlap and hide the lower one. -->
+<div class="app-header">
+<header class="topbar">
+  <div class="brand-section">
+    <div class="brand">📖 المصحف المرتل - تجويد وحفظ</div>
+  </div>
+  <nav class="tabs" id="mainTabs">
+    <button class="tab-btn active" data-tab="mushaf">المصحف</button>
+    <button class="tab-btn" data-tab="memorize">الحفظ</button>
+    <button class="tab-btn" data-tab="quiz">اختبار</button>
+    <button class="tab-btn" data-tab="lessons">دروس التجويد</button>
+    <button class="tab-btn" data-tab="adhkar">الأذكار</button>
+    <button class="tab-btn" data-tab="worship">القبلة والمواقيت</button>
+  </nav>
+  <button id="btnInstall" class="install-btn" hidden>⬇ تثبيت التطبيق</button>
+</header>
+
+<!-- Always-visible controls, so they work from any tab without a settings screen. -->
+<div class="global-bar">
+  <label class="gb-item">
+    <span class="gb-label">🎙️ القارئ</span>
+    <select id="reciterSelect"></select>
+  </label>
+  <span class="gb-item gb-cache">
+    <span class="gb-label">💾 الكاش</span>
+    <span id="cacheStat" class="gb-stat">—</span>
+    <button id="btnCacheClear" class="danger">🗑 مسح</button>
+  </span>
+</div>
+</div>
+
+<main id="app">
+
+  <!-- ===================== MUSHAF ===================== -->
+  <section id="tab-mushaf" class="tab-panel active">
+    <div class="search-wrap">
+      <div class="search-bar">
+        <span class="search-icon">🔍</span>
+        <input type="search" id="searchInput" autocomplete="off"
+               placeholder="ابحث برقم الصفحة، أو اسم السورة، أو جزء من آية...">
+        <button id="btnSearch" class="primary">بحث</button>
+        <button id="btnSearchClear" title="مسح">✕</button>
+      </div>
+      <div class="search-results" id="searchResults" hidden></div>
+    </div>
+
+    <div class="nav-bar">
+      <div class="nav-group">
+        <label>السورة</label>
+        <select id="selSurah"></select>
+      </div>
+      <div class="nav-group">
+        <label>الجزء</label>
+        <select id="selJuz"></select>
+      </div>
+      <div class="nav-group">
+        <label>الربع (الحزب)</label>
+        <select id="selHizb"></select>
+      </div>
+      <div class="nav-group">
+        <label>الصفحة</label>
+        <input type="number" id="selPage" min="1" max="604" value="1">
+      </div>
+      <div class="nav-group nav-buttons">
+        <button id="btnPrevPage" title="الصفحة السابقة">›</button>
+        <button id="btnNextPage" title="الصفحة التالية">‹</button>
+      </div>
+      <div class="nav-group nav-buttons">
+        <button id="btnPlayPage" class="primary">▶ تشغيل</button>
+        <button id="btnPausePage" disabled>⏸ إيقاف مؤقت</button>
+        <button id="btnStopAudio">⏹ إيقاف</button>
+      </div>
+      <div class="nav-group">
+        <label>طريقة العرض</label>
+        <div class="segmented" id="viewMode">
+          <button class="seg-btn" data-mode="single">📄 صفحة واحدة</button>
+          <button class="seg-btn" data-mode="spread">📖 صفحتان</button>
+        </div>
+      </div>
+      <div class="nav-group">
+        <label class="chk"><input type="checkbox" id="chkTajweedOn" checked> ألوان التجويد</label>
+        <label class="chk"><input type="checkbox" id="chkAutoTurn" checked> قلب الصفحة تلقائياً</label>
+        <input type="checkbox" id="chkSpread" hidden>
+      </div>
+    </div>
+    <p class="tip">💡 اضغط على أي آية للاستماع إليها أو ترديدها أو قراءة تفسيرها — واستخدم ❮ ❯ لتقليب صفحات المصحف.</p>
+
+    <!-- Reading area and legend sit side by side; the legend stays in view while
+         the page scrolls so the colours can be checked without scrolling away. -->
+    <div class="read-layout">
+      <!-- Framed like a real mushaf leaf: header with surah/juz, ruled text body,
+           page number in a medallion, and a flip animation on page change. -->
+      <div class="mushaf-book">
+        <!-- Two leaves, as in an open mushaf. RTL puts the first child on the
+             right, which is the earlier page. In single-page mode the left leaf
+             is hidden. -->
+        <div class="mushaf-spread" id="mushafSpread">
+          <div class="mushaf-sheet" id="mushafSheet">
+            <div class="sheet-header">
+              <span class="sheet-surah" id="sheetSurahName"></span>
+              <span class="sheet-juz" id="sheetJuzName"></span>
+            </div>
+            <div class="mushaf-page" id="mushafPage">
+              <div class="loading">اختر صفحة أو سورة للبدء...</div>
+            </div>
+            <div class="sheet-page-num"><span class="page-medallion" id="pageMedallion">١</span></div>
+          </div>
+
+          <div class="mushaf-sheet" id="mushafSheetLeft" hidden>
+            <div class="sheet-header">
+              <span class="sheet-surah" id="sheetSurahNameLeft"></span>
+              <span class="sheet-juz" id="sheetJuzNameLeft"></span>
+            </div>
+            <div class="mushaf-page" id="mushafPageLeft"></div>
+            <div class="sheet-page-num"><span class="page-medallion" id="pageMedallionLeft">٢</span></div>
+          </div>
+        </div>
+
+        <!-- Arrows use SVG rather than chevron characters: ❮ ❯ ‹ › are all
+             bidi-mirrored, so the browser flips them inside an RTL document. -->
+        <div class="book-nav">
+          <button class="page-arrow" id="btnSheetPrev" title="الصفحة السابقة" aria-label="الصفحة السابقة">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <span class="book-nav-label" id="bookNavLabel"></span>
+          <button class="page-arrow" id="btnSheetNext" title="الصفحة التالية" aria-label="الصفحة التالية">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+      <aside class="legend-side" id="tajweedLegend"></aside>
+    </div>
+  </section>
+
+  <!-- ===================== MEMORIZE ===================== -->
+  <section id="tab-memorize" class="tab-panel">
+    <div class="nav-bar">
+      <div class="nav-group">
+        <label>نطاق الحفظ</label>
+        <select id="memScope">
+          <option value="surah">سورة كاملة</option>
+          <option value="range">نطاق آيات</option>
+          <option value="page">صفحة / عدة صفحات</option>
+          <option value="juz">جزء</option>
+          <option value="hizb">ربع حزب</option>
+        </select>
+      </div>
+      <div class="nav-group" id="memSurahGroup">
+        <label>السورة</label>
+        <select id="memSurah"></select>
+      </div>
+      <div class="nav-group" id="memRangeGroup" style="display:none">
+        <label>من آية <span id="memRangeHint" class="hint"></span></label>
+        <div class="inline-row">
+          <input type="number" id="memFrom" min="1" value="1">
+          <span>إلى</span>
+          <input type="number" id="memTo" min="1" value="7">
+        </div>
+        <label class="chk"><input type="checkbox" id="memWholeSurah"> إلى آخر السورة</label>
+      </div>
+      <div class="nav-group" id="memPageGroup" style="display:none">
+        <label>من صفحة إلى صفحة</label>
+        <div class="inline-row">
+          <input type="number" id="memPageFrom" min="1" max="604" value="1">
+          <span>إلى</span>
+          <input type="number" id="memPageTo" min="1" max="604" value="1">
+        </div>
+      </div>
+      <div class="nav-group" id="memJuzGroup" style="display:none">
+        <label>الجزء</label>
+        <select id="memJuz"></select>
+      </div>
+      <div class="nav-group" id="memHizbGroup" style="display:none">
+        <label>الربع</label>
+        <select id="memHizb"></select>
+      </div>
+      <div class="nav-group">
+        <label>تكرار كل آية</label>
+        <input type="number" id="memRepeatAyah" min="1" max="50" value="3">
+      </div>
+      <div class="nav-group">
+        <label>تكرار النطاق</label>
+        <input type="number" id="memRepeatRange" min="1" max="50" value="1">
+      </div>
+      <div class="nav-group">
+        <label class="chk"><input type="checkbox" id="memTajweed" checked> ألوان التجويد</label>
+        <label class="chk"><input type="checkbox" id="memHideText"> اختبار الحفظ (إخفاء النص)</label>
+      </div>
+      <div class="nav-group nav-buttons">
+        <button id="btnMemLoad">تحميل</button>
+        <button id="btnMemPlay" class="primary">▶ ابدأ</button>
+        <button id="btnMemPause" disabled>⏸ إيقاف مؤقت</button>
+        <button id="btnMemStop">⏹ إيقاف</button>
+      </div>
+    </div>
+
+    <div class="mem-status" id="memStatus"></div>
+    <div class="read-layout">
+      <div class="mushaf-page" id="memPage">
+        <div class="loading">اختر نطاقاً واضغط "تحميل" للبدء في الحفظ.</div>
+      </div>
+      <aside class="legend-side" id="memLegend"></aside>
+    </div>
+  </section>
+
+  <!-- ===================== QUIZ ===================== -->
+  <section id="tab-quiz" class="tab-panel">
+    <div class="nav-bar">
+      <div class="nav-group">
+        <label>مستوى الاختبار</label>
+        <select id="quizLevel">
+          <option value="surah">١ - سورة واحدة</option>
+          <option value="juz">٢ - جزء كامل</option>
+          <option value="quran">٣ - القرآن كاملاً</option>
+        </select>
+      </div>
+      <div class="nav-group" id="quizSurahGroup">
+        <label>السورة</label>
+        <select id="quizSurah"></select>
+      </div>
+      <div class="nav-group" id="quizJuzGroup" style="display:none">
+        <label>الجزء</label>
+        <select id="quizJuz"></select>
+      </div>
+      <div class="nav-group">
+        <label>موضوع الاختبار</label>
+        <select id="quizSubject">
+          <option value="quran">قرآن فقط</option>
+          <option value="both">قرآن + تجويد</option>
+          <option value="tajweed">تجويد فقط</option>
+        </select>
+      </div>
+      <div class="nav-group">
+        <label>نوع سؤال القرآن</label>
+        <select id="quizType">
+          <option value="complete">أكمل الآية</option>
+          <option value="word">الكلمة الناقصة</option>
+        </select>
+      </div>
+      <div class="nav-group nav-buttons">
+        <button id="btnQuizStart" class="primary">ابدأ الاختبار</button>
+        <button id="btnQuizNext">التالي</button>
+        <button id="btnQuizReset" title="ابدأ دورة أسئلة جديدة">↺ تصفير</button>
+      </div>
+      <div class="nav-group quiz-score">
+        النتيجة: <span id="quizScore">0</span> / <span id="quizTotal">0</span>
+        <span id="quizPct" class="quiz-pct"></span>
+      </div>
+    </div>
+
+    <div class="quiz-box" id="quizBox">
+      <div class="loading">اختر المستوى والموضوع واضغط "ابدأ الاختبار".</div>
+    </div>
+  </section>
+
+  <!-- ===================== LESSONS ===================== -->
+  <section id="tab-lessons" class="tab-panel">
+    <div class="lessons-wrap">
+      <aside class="lessons-list" id="lessonsList"></aside>
+      <div class="lesson-content" id="lessonContent">
+        <div class="loading">اختر درساً من القائمة.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== ADHKAR ===================== -->
+  <section id="tab-adhkar" class="tab-panel">
+    <div class="nav-bar">
+      <div class="nav-group nav-buttons">
+        <button class="set-btn active" data-set="morning">☀️ أذكار الصباح</button>
+        <button class="set-btn" data-set="evening">🌙 أذكار المساء</button>
+        <button class="set-btn" data-set="sleep">🛏️ أذكار النوم</button>
+      </div>
+    </div>
+    <p class="adhkar-note" id="adhkarNote"></p>
+    <div class="adhkar-list" id="adhkarList"></div>
+  </section>
+
+  <!-- ===================== WORSHIP (QIBLA + PRAYER TIMES) ===================== -->
+  <section id="tab-worship" class="tab-panel">
+    <div class="nav-bar">
+      <div class="nav-group nav-buttons">
+        <button id="btnLocate" class="primary">📍 تحديد موقعي</button>
+        <button id="btnCompass">🧭 تفعيل البوصلة</button>
+      </div>
+      <div class="nav-group">
+        <label>طريقة الحساب</label>
+        <select id="calcMethod"></select>
+      </div>
+      <div class="nav-group">
+        <label>مذهب العصر</label>
+        <select id="asrSchool">
+          <option value="0">الجمهور (شافعي/مالكي/حنبلي)</option>
+          <option value="1">الحنفي (العصر متأخر ~ساعة)</option>
+        </select>
+      </div>
+      <div class="nav-group nav-buttons">
+        <button id="btnResetTune" title="إلغاء كل التعديلات اليدوية">↺ تصفير التعديل</button>
+      </div>
+    </div>
+    <div class="worship-info" id="worshipInfo">اضغط "تحديد موقعي" لعرض المواقيت واتجاه القبلة.</div>
+    <div class="calc-info" id="calcInfo"></div>
+
+    <div class="card alerts-card">
+      <h3>🔔 التنبيهات الصوتية</h3>
+      <p class="hint">
+        ينطق التطبيق اسم الصلاة أو الأذكار عند دخول وقتها مع نغمة تنبيه، فلا تحتاج
+        أن تكون ناظراً للشاشة. يعمل ما دام التطبيق مفتوحاً (تبويب، أو التطبيق المثبَّت، أو نسخة الكمبيوتر).
+      </p>
+      <div class="alert-controls">
+        <button id="btnEnableAlerts" class="primary">🔔 تفعيل التنبيهات</button>
+        <button id="btnTestAlert">▶ جرّب الصوت</button>
+        <label class="chk"><input type="checkbox" id="alertPrayers" checked> تنبيه الصلوات</label>
+        <label class="chk"><input type="checkbox" id="alertAdhkar" checked> تنبيه الأذكار</label>
+      </div>
+      <div class="alerts-next" id="alertsNext"></div>
+    </div>
+
+    <div class="worship-grid">
+      <div class="card">
+        <h3>مواقيت الصلاة</h3>
+        <div class="hijri" id="hijriDate"></div>
+        <div class="next-prayer" id="nextPrayer"></div>
+        <div class="prayer-list" id="prayerTimes"></div>
+      </div>
+      <div class="card">
+        <h3>اتجاه القبلة</h3>
+        <div class="compass">
+          <div class="compass-dial">
+            <span class="dir n">ش</span><span class="dir e">ق</span>
+            <span class="dir s">ج</span><span class="dir w">غ</span>
+            <div class="needle" id="qiblaNeedle">🕋</div>
+          </div>
+        </div>
+        <div class="qibla-angle" id="qiblaAngle"></div>
+        <div class="compass-hint" id="compassHint"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Ayah action sheet -->
+<div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
+<aside class="ayah-sheet" id="ayahSheet" hidden>
+  <div class="sheet-head">
+    <strong id="sheetTitle"></strong>
+    <button id="sheetClose" class="sheet-close">✕</button>
+  </div>
+  <div class="sheet-ayah" id="sheetAyah"></div>
+  <div class="sheet-actions">
+    <button id="sheetPlay" class="primary">▶ استمع</button>
+    <span class="rep-inline">
+      <button id="sheetRepeatBtn">🔁 ردّد</button>
+      <input type="number" id="sheetRepeat" min="1" max="50" value="3">
+      <span>مرة</span>
+    </span>
+    <button id="sheetPause" disabled>⏸ إيقاف مؤقت</button>
+    <button id="sheetTafsirBtn">📖 التفسير</button>
+    <select id="tafsirEdition"></select>
+  </div>
+  <div class="sheet-status" id="sheetStatus"></div>
+  <div class="sheet-tafsir" id="sheetTafsir" hidden></div>
+</aside>
+
+<audio id="audioPlayer"></audio>
+<audio id="ayahAudio"></audio>
+<audio id="lessonAudio"></audio>
+<audio id="alertAudio"></audio>
+
+<footer class="footer">
+  <div class="status-line" id="statusBar"></div>
+</footer>
+
+<script src="js/tajweed.js"></script>
+<script src="js/api.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/mushaf.js"></script>
+<script src="js/memorize.js"></script>
+<script src="js/quiz.js"></script>
+<script src="js/lessons.js"></script>
+<script src="js/adhkar.js"></script>
+<script src="js/worship.js"></script>
+<script src="js/ayahactions.js"></script>
+<script src="js/search.js"></script>
+<script src="js/nativealerts.js"></script>
+<script src="js/alerts.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
