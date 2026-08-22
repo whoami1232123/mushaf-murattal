@@ -217,11 +217,27 @@ const Mushaf = (() => {
     setStatus('جارٍ تحميل السورة...');
     const data = await fetchSurah(surahNum);
     await turnTo(data.ayahs[0].page);
-    // A surah can start mid-page (e.g. the last few ayahs of the previous surah
-    // appear above it).  Trim the play queue so audio begins at ayah 1 of the
-    // selected surah, not at the first ayah of the page.
-    const idx = currentAyahs.findIndex(a => a.surah && a.surah.number === surahNum);
+    // A surah can start mid-page (the previous surah's tail appears above it).
+    // Trim the play queue so audio starts at ayah 1 of the selected surah.
+    // Match on the global ayah number — avoids any string/number type mismatch
+    // that can happen when comparing surah.number from two different API calls.
+    const firstGlobal = data.ayahs[0].number;
+    const idx = currentAyahs.findIndex(a => a.number === firstGlobal);
     if (idx > 0) currentAyahs = currentAyahs.slice(idx);
+    // Scroll the surah banner into view so the reader sees the beginning of the
+    // surah immediately, especially when the previous surah shares the same page.
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`#mushafSpread .ayah[data-global="${firstGlobal}"]`);
+      if (el) {
+        let target = el;
+        let sib = el.previousElementSibling;
+        while (sib) {
+          if (sib.classList.contains('surah-banner')) { target = sib; break; }
+          sib = sib.previousElementSibling;
+        }
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
     setStatus(`سورة ${data.name} — ${data.numberOfAyahs} آية — تبدأ في الصفحة ${data.ayahs[0].page}`);
   }
 
@@ -232,6 +248,10 @@ const Mushaf = (() => {
     const firstGlobal = data.ayahs[0].number;
     const idx = currentAyahs.findIndex(a => a.number === firstGlobal);
     if (idx > 0) currentAyahs = currentAyahs.slice(idx);
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`#mushafSpread .ayah[data-global="${firstGlobal}"]`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     setStatus(`الجزء ${toArabicDigits(juzNum)} — يبدأ في الصفحة ${data.ayahs[0].page}`);
   }
 
@@ -242,6 +262,10 @@ const Mushaf = (() => {
     const firstGlobal = data.ayahs[0].number;
     const idx = currentAyahs.findIndex(a => a.number === firstGlobal);
     if (idx > 0) currentAyahs = currentAyahs.slice(idx);
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`#mushafSpread .ayah[data-global="${firstGlobal}"]`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     setStatus(`الربع ${toArabicDigits(hizbNum)} — يبدأ في الصفحة ${data.ayahs[0].page}`);
   }
 
