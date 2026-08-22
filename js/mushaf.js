@@ -216,56 +216,67 @@ const Mushaf = (() => {
   async function loadSurah(surahNum) {
     setStatus('جارٍ تحميل السورة...');
     const data = await fetchSurah(surahNum);
-    await turnTo(data.ayahs[0].page);
-    // A surah can start mid-page (the previous surah's tail appears above it).
-    // Trim the play queue so audio starts at ayah 1 of the selected surah.
-    // Match on the global ayah number — avoids any string/number type mismatch
-    // that can happen when comparing surah.number from two different API calls.
     const firstGlobal = data.ayahs[0].number;
+    await turnTo(data.ayahs[0].page);
+
+    // Trim the audio queue so playback starts at ayah 1 of the selected surah.
     const idx = currentAyahs.findIndex(a => a.number === firstGlobal);
     if (idx > 0) currentAyahs = currentAyahs.slice(idx);
-    // Scroll the surah banner into view so the reader sees the beginning of the
-    // surah immediately, especially when the previous surah shares the same page.
-    requestAnimationFrame(() => {
-      const el = document.querySelector(`#mushafSpread .ayah[data-global="${firstGlobal}"]`);
-      if (el) {
-        let target = el;
-        let sib = el.previousElementSibling;
-        while (sib) {
-          if (sib.classList.contains('surah-banner')) { target = sib; break; }
-          sib = sib.previousElementSibling;
-        }
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    });
+
+    // The page may begin with the tail of the previous surah.  Remove those
+    // leading ayahs from the right-sheet DOM so the reader sees the selected
+    // surah at the very top of the displayed content.
+    clipPageToSurah('mushafPage', firstGlobal);
+
     setStatus(`سورة ${data.name} — ${data.numberOfAyahs} آية — تبدأ في الصفحة ${data.ayahs[0].page}`);
+  }
+
+  /**
+   * Strip all rendered content that appears *before* the first ayah of the
+   * chosen surah in a sheet container, so that surah starts at the top.
+   * Only acts on the given container (right sheet); the left sheet is left
+   * intact because a whole page belonging to a previous surah is correct.
+   */
+  function clipPageToSurah(containerId, firstGlobal) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const firstEl = container.querySelector(`.ayah[data-global="${firstGlobal}"]`);
+    if (!firstEl) return;          // surah is on the other sheet — nothing to clip
+
+    // Walk backwards to include the surah-banner (and basmalah) above the ayah.
+    let cutEl = firstEl;
+    let sib = firstEl.previousElementSibling;
+    while (sib) {
+      if (sib.classList.contains('surah-banner')) { cutEl = sib; break; }
+      if (sib.classList.contains('basmalah'))     { cutEl = sib; }
+      sib = sib.previousElementSibling;
+    }
+
+    // Remove everything that comes before the cut point.
+    while (cutEl.previousElementSibling) {
+      cutEl.previousElementSibling.remove();
+    }
   }
 
   async function loadJuz(juzNum) {
     setStatus('جارٍ تحميل الجزء...');
     const data = await fetchJuz(juzNum);
-    await turnTo(data.ayahs[0].page);
     const firstGlobal = data.ayahs[0].number;
+    await turnTo(data.ayahs[0].page);
     const idx = currentAyahs.findIndex(a => a.number === firstGlobal);
     if (idx > 0) currentAyahs = currentAyahs.slice(idx);
-    requestAnimationFrame(() => {
-      const el = document.querySelector(`#mushafSpread .ayah[data-global="${firstGlobal}"]`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    clipPageToSurah('mushafPage', firstGlobal);
     setStatus(`الجزء ${toArabicDigits(juzNum)} — يبدأ في الصفحة ${data.ayahs[0].page}`);
   }
 
   async function loadHizb(hizbNum) {
     setStatus('جارٍ تحميل الربع...');
     const data = await fetchHizb(hizbNum);
-    await turnTo(data.ayahs[0].page);
     const firstGlobal = data.ayahs[0].number;
+    await turnTo(data.ayahs[0].page);
     const idx = currentAyahs.findIndex(a => a.number === firstGlobal);
     if (idx > 0) currentAyahs = currentAyahs.slice(idx);
-    requestAnimationFrame(() => {
-      const el = document.querySelector(`#mushafSpread .ayah[data-global="${firstGlobal}"]`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    clipPageToSurah('mushafPage', firstGlobal);
     setStatus(`الربع ${toArabicDigits(hizbNum)} — يبدأ في الصفحة ${data.ayahs[0].page}`);
   }
 
