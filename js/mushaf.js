@@ -217,6 +217,11 @@ const Mushaf = (() => {
     setStatus('جارٍ تحميل السورة...');
     const data = await fetchSurah(surahNum);
     await turnTo(data.ayahs[0].page);
+    // A surah can start mid-page (e.g. the last few ayahs of the previous surah
+    // appear above it).  Trim the play queue so audio begins at ayah 1 of the
+    // selected surah, not at the first ayah of the page.
+    const idx = currentAyahs.findIndex(a => a.surah && a.surah.number === surahNum);
+    if (idx > 0) currentAyahs = currentAyahs.slice(idx);
     setStatus(`سورة ${data.name} — ${data.numberOfAyahs} آية — تبدأ في الصفحة ${data.ayahs[0].page}`);
   }
 
@@ -224,6 +229,9 @@ const Mushaf = (() => {
     setStatus('جارٍ تحميل الجزء...');
     const data = await fetchJuz(juzNum);
     await turnTo(data.ayahs[0].page);
+    const firstGlobal = data.ayahs[0].number;
+    const idx = currentAyahs.findIndex(a => a.number === firstGlobal);
+    if (idx > 0) currentAyahs = currentAyahs.slice(idx);
     setStatus(`الجزء ${toArabicDigits(juzNum)} — يبدأ في الصفحة ${data.ayahs[0].page}`);
   }
 
@@ -231,6 +239,9 @@ const Mushaf = (() => {
     setStatus('جارٍ تحميل الربع...');
     const data = await fetchHizb(hizbNum);
     await turnTo(data.ayahs[0].page);
+    const firstGlobal = data.ayahs[0].number;
+    const idx = currentAyahs.findIndex(a => a.number === firstGlobal);
+    if (idx > 0) currentAyahs = currentAyahs.slice(idx);
     setStatus(`الربع ${toArabicDigits(hizbNum)} — يبدأ في الصفحة ${data.ayahs[0].page}`);
   }
 
