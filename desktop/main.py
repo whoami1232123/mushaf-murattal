@@ -18,6 +18,31 @@ import threading
 import http.server
 import socketserver
 
+
+def _ensure_single_instance():
+    """
+    Windows named-mutex guard: if another instance is already running, bring
+    its window to the foreground and exit immediately.  The mutex handle is
+    returned so the caller can keep it alive (GC would release it).
+    """
+    try:
+        import ctypes
+        import ctypes.wintypes
+
+        ERROR_ALREADY_EXISTS = 183
+        mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "Global\\MushafMurattalSingleInstance")
+        if ctypes.windll.kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+            # Find the existing window by title and restore/focus it.
+            hwnd = ctypes.windll.user32.FindWindowW(None, APP_TITLE)
+            if hwnd:
+                SW_RESTORE = 9
+                ctypes.windll.user32.ShowWindow(hwnd, SW_RESTORE)
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+            os._exit(0)
+        return mutex
+    except Exception:
+        return None
+
 import webview
 
 from prayer_service import PrayerService, settings_path
@@ -165,6 +190,8 @@ def start_tray(window, service):
 
 
 def main():
+    _mutex = _ensure_single_instance()  # noqa: F841 — keep alive until exit
+
     start_hidden = "--tray" in sys.argv
 
     port = free_port()

@@ -53,6 +53,23 @@ def load_settings() -> dict:
         return {}
 
 
+def fetch_coords_from_ip() -> dict | None:
+    """
+    Last-resort geolocation via the public ipapi.co endpoint (±50 km accuracy,
+    no API key needed).  Used when the web page has never synced a location to
+    settings.json — e.g. the user hasn't visited the worship tab yet.
+    """
+    try:
+        with urllib.request.urlopen("https://ipapi.co/json/", timeout=10) as resp:
+            data = json.load(resp)
+        lat, lng = data.get("latitude"), data.get("longitude")
+        if lat is not None and lng is not None:
+            return {"lat": float(lat), "lng": float(lng)}
+    except Exception:
+        pass
+    return None
+
+
 def fetch_timings(lat: float, lng: float, method: str, school: str, day: _dt.date) -> dict | None:
     date_str = day.strftime("%d-%m-%Y")
     query = urllib.parse.urlencode(
@@ -114,7 +131,12 @@ class PrayerService:
         coords = settings.get("coords") or {}
         lat, lng = coords.get("lat"), coords.get("lng")
         if lat is None or lng is None:
-            return None
+            # The web page hasn't synced a location yet (user hasn't visited the
+            # worship tab).  Fall back to IP geolocation so reminders still fire.
+            ip_coords = fetch_coords_from_ip()
+            if ip_coords is None:
+                return None
+            lat, lng = ip_coords["lat"], ip_coords["lng"]
 
         raw = fetch_timings(
             lat, lng,

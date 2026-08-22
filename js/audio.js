@@ -12,6 +12,11 @@ class AyahQueuePlayer {
     this.onStateChange = null; // ({playing, paused}) => void
     this._timer = null;
     this.audioEl.addEventListener('ended', () => this._scheduleNextWithGap());
+    // Skip over ayahs whose audio file fails to load (404, offline, etc.)
+    // rather than killing the entire queue.
+    this.audioEl.addEventListener('error', () => {
+      if (this.playing && !this.paused) this._scheduleNextWithGap();
+    });
   }
 
   setQueue(items) {
@@ -82,11 +87,15 @@ class AyahQueuePlayer {
     const url = audioUrlForAyah(item.globalNumber, item.surahNumber, item.numberInSurah);
     if (!url) { this._scheduleNextWithGap(); return; }
     this.audioEl.src = url;
-    this.audioEl.play().catch(() => {
-      // Autoplay may be blocked until a user gesture; surface as a stop.
-      this.playing = false;
-      this._emitState();
-      if (this.onQueueEnd) this.onQueueEnd();
+    this.audioEl.play().catch(err => {
+      // NotAllowedError means autoplay is blocked — stop and wait for a gesture.
+      // Other errors (AbortError from a rapid src-swap, etc.) are handled by
+      // the 'error' event listener above, which skips to the next item.
+      if (err.name === 'NotAllowedError') {
+        this.playing = false;
+        this._emitState();
+        if (this.onQueueEnd) this.onQueueEnd();
+      }
     });
     this._emitState();
   }
