@@ -63,27 +63,49 @@ const Alerts = (() => {
     return await Notification.requestPermission();
   }
 
-  /** Short chime built with the Web Audio API - no asset to ship or download. */
+  /** Deep bell chime — A3/D3/A3 (220/147/220 Hz) for an authoritative male tone. */
   function chime() {
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;
       const ctx = new Ctx();
       const now = ctx.currentTime;
-      [0, 0.18, 0.36].forEach((t, i) => {
+      [[0, 220], [0.5, 147], [1.0, 220]].forEach(([t, freq]) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'sine';
-        osc.frequency.value = [660, 880, 660][i];
+        osc.frequency.value = freq;
         gain.gain.setValueAtTime(0.0001, now + t);
-        gain.gain.exponentialRampToValueAtTime(0.35, now + t + 0.03);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.16);
+        gain.gain.exponentialRampToValueAtTime(0.45, now + t + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.9);
         osc.connect(gain).connect(ctx.destination);
         osc.start(now + t);
-        osc.stop(now + t + 0.2);
+        osc.stop(now + t + 1.0);
       });
-      setTimeout(() => ctx.close(), 1500);
+      setTimeout(() => ctx.close(), 3500);
     } catch (e) { /* audio unavailable */ }
+  }
+
+  /* Prefer a male Arabic TTS voice: match known male voice names first, and
+     never pick a voice known to be female. If the device exposes only female
+     Arabic voices the best available one is used - nothing else we can do. */
+  const MALE_VOICE_HINTS = ['maged', 'hamed', 'naayf', 'shakir', 'tarik',
+    'fahed', 'fahad', 'hamdan', 'muhammad', 'mohammed', 'omar', 'male'];
+  const FEMALE_VOICE_HINTS = ['zariyah', 'salma', 'laila', 'layla', 'amany',
+    'amira', 'sana', 'hoda', 'reem', 'mariam', 'female'];
+
+  let arabicVoice = null;   // resolved once voices load, then reused
+
+  function pickArabicVoice() {
+    const voices = speechSynthesis.getVoices().filter(v => v.lang && v.lang.startsWith('ar'));
+    if (!voices.length) return null;
+    const gender = (v) => {
+      const n = (v.name || '').toLowerCase();
+      if (FEMALE_VOICE_HINTS.some(h => n.includes(h))) return 0;
+      if (MALE_VOICE_HINTS.some(h => n.includes(h))) return 2;
+      return 1;   // unmarked voices outrank known-female ones
+    };
+    return voices.sort((a, b) => gender(b) - gender(a))[0];
   }
 
   /** Speak the announcement in Arabic so the user need not be looking. */
@@ -92,9 +114,10 @@ const Alerts = (() => {
       if (!('speechSynthesis' in window)) return;
       const u = new SpeechSynthesisUtterance(text);
       u.lang = 'ar-SA';
-      u.rate = 0.9;
-      const arVoice = speechSynthesis.getVoices().find(v => v.lang && v.lang.startsWith('ar'));
-      if (arVoice) u.voice = arVoice;
+      u.rate = 0.85;
+      u.pitch = 0.75;   // lower pitch reinforces the masculine, authoritative tone
+      if (!arabicVoice) arabicVoice = pickArabicVoice();
+      if (arabicVoice) u.voice = arabicVoice;
       speechSynthesis.speak(u);
     } catch (e) { /* speech unavailable */ }
   }
@@ -200,7 +223,30 @@ const Alerts = (() => {
     if (Worship.syncSettingsToHost) Worship.syncSettingsToHost();
     if (!window.NativeAlerts || !NativeAlerts.isNative()) return;
     NativeAlerts.scheduleUpcoming(Worship.fetchTimingsForDate, prefs())
-      .catch(() => { /* best-effort; the JS-timer path still covers foreground use */ });
+      .then(showNativeStatus)
+      .catch(() => showNativeStatus({ scheduled: false, reason: 'error' }));
+  }
+
+  /* Make the invisible part (OS-level alarms) diagnosable: without this line a
+     reader whose phone silently refused scheduling has no way to know why. */
+  function showNativeStatus(res) {
+    const box = el('nativeAlertStatus');
+    if (!box || !res) return;
+    if (res.scheduled && res.count > 0) {
+      box.textContent = `✅ تمت جدولة ${res.count} تنبيهاً على مدى ${res.days || 7} أيام — ستصل حتى لو كان التطبيق مغلقاً.`;
+    } else {
+      const msgs = {
+        'permission-denied': '⚠️ إذن الإشعارات مرفوض — افتح إعدادات النظام واسمح للتطبيق بالإشعارات.',
+        'not-native': '',
+        'error': '⚠️ تعذّر جدولة تنبيهات النظام — أعد فتح التطبيق والاتصال بالإنترنت.',
+      };
+      box.textContent = msgs[res.reason] || '⚠️ تعذّر جدولة تنبيهات النظام.';
+    }
+    if (box.textContent) {
+      // Aggressive battery savers (Xiaomi/Huawei/Samsung) drop exact alarms;
+      // this is the single most common cause of "notifications never arrive".
+      box.textContent += ' إن لم تصل التنبيهات، فعِّل التطبيق في إعدادات البطارية (بدون قيود).';
+    }
   }
 
   function reflectToggles() {
@@ -215,6 +261,12 @@ const Alerts = (() => {
   function init() {
     if (!el('alertPrayers')) return;
     reflectToggles();
+
+    // Voice lists load asynchronously on some platforms; re-resolve when they
+    // arrive, otherwise the first announcement uses whatever was available.
+    if ('speechSynthesis' in window && speechSynthesis.addEventListener) {
+      speechSynthesis.addEventListener('voiceschanged', () => { arabicVoice = pickArabicVoice(); });
+    }
 
     el('btnEnableAlerts').addEventListener('click', async () => {
       const state = await requestPermission();
@@ -237,6 +289,11 @@ const Alerts = (() => {
       announce('تم تفعيل التنبيهات', state === 'granted'
         ? locationNote
         : 'الصوت يعمل، لكن إشعارات النظام مرفوضة');
+
+      // Explicitly reschedule native alarms now that the user has granted
+      // permissions. This covers the case where coords were already saved but
+      // native alarms had never been scheduled (fresh install, cleared data).
+      scheduleNative();
     });
 
     el('alertPrayers').addEventListener('change', e => { setPref('prayers', e.target.checked); renderNext(); scheduleNative(); });
@@ -247,6 +304,12 @@ const Alerts = (() => {
     clearInterval(ticker);
     ticker = setInterval(tick, 30000);   // half-minute resolution is enough
     tick();
+
+    // Coming back to the foreground is the natural moment to refresh the rolling
+    // window of native alarms (days elapsed while the app was closed).
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && timings) scheduleNative();
+    });
   }
 
   return { init, setTimings };

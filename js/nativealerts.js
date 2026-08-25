@@ -55,21 +55,26 @@ const NativeAlerts = (() => {
     } catch (err) { /* channel may already exist */ }
   }
 
+  /** Returns true if exact-alarm permission is already granted (no redirect). */
+  async function _hasExactAlarm() {
+    try {
+      const res = await plugin().checkExactNotificationSetting();
+      return res.exact_alarm === 'granted';
+    } catch (err) {
+      return false; // API not available on this Android version — treat as granted
+    }
+  }
+
   async function ensurePermissions() {
     const perm = await plugin().checkPermissions();
     if (perm.display !== 'granted') {
       const req = await plugin().requestPermissions();
-      if (req.display !== 'granted') return false;
+      if (req.display !== 'granted') return { granted: false, exact: false };
     }
-    // Exact-time alarms need separate opt-in on Android 12+ (API 31-32); on 33+
-    // the manifest's USE_EXACT_ALARM covers it and this call is a no-op there.
-    try {
-      const exact = await plugin().checkExactNotificationSetting();
-      if (exact.exact_alarm !== 'granted') {
-        await plugin().changeExactNotificationSetting();
-      }
-    } catch (err) { /* not applicable on this Android version */ }
-    return true;
+    const exact = await _hasExactAlarm();
+    // Do NOT redirect to settings here — that would interrupt the user flow.
+    // scheduleUpcoming will use allowWhileIdle only when exact alarms are available.
+    return { granted: true, exact };
   }
 
   function minutesToDate(baseDate, hhmm, offsetMin = 0) {
@@ -86,7 +91,7 @@ const NativeAlerts = (() => {
    */
   async function scheduleUpcoming(fetchDay, prefs) {
     if (!isNative()) return { scheduled: false, reason: 'not-native' };
-    const granted = await ensurePermissions();
+    const { granted, exact } = await ensurePermissions();
     if (!granted) return { scheduled: false, reason: 'permission-denied' };
     await ensureChannel();
 
@@ -99,12 +104,17 @@ const NativeAlerts = (() => {
 
     const notifications = [];
     const now = new Date();
+    let daysScheduled = 0;
     for (let dayOffset = 0; dayOffset < DAYS_AHEAD; dayOffset++) {
       const day = new Date(now);
       day.setDate(day.getDate() + dayOffset);
       const dateKey = day.toDateString();
-      const timings = await fetchDay(day);
+      // One flaky request must not abort the whole week: skip the failed day
+      // and keep scheduling the rest.
+      let timings = null;
+      try { timings = await fetchDay(day); } catch (err) { continue; }
       if (!timings) continue;
+      daysScheduled++;
 
       if (prefs.prayers !== false) {
         for (const key in PRAYER_LABELS) {
@@ -116,7 +126,10 @@ const NativeAlerts = (() => {
             title: `حان الآن موعد ${PRAYER_LABELS[key]}`,
             body: timings[key],
             channelId: CHANNEL_ID,
-            schedule: { at, allowWhileIdle: true },
+            // allowWhileIdle fires even in Doze mode but needs SCHEDULE_EXACT_ALARM
+            // on Android 12 (API 31-32). Fall back to inexact if not granted — the
+            // notification may arrive a few minutes late but will always fire.
+            schedule: { at, allowWhileIdle: exact },
           });
         }
       }
@@ -131,14 +144,14 @@ const NativeAlerts = (() => {
             title: `حان وقت ${a.label}`,
             body: 'اضغط لفتح الأذكار',
             channelId: CHANNEL_ID,
-            schedule: { at, allowWhileIdle: true },
+            schedule: { at, allowWhileIdle: exact },
           });
         }
       }
     }
 
     if (notifications.length) await plugin().schedule({ notifications });
-    return { scheduled: true, count: notifications.length };
+    return { scheduled: true, count: notifications.length, days: daysScheduled };
   }
 
   return { isNative, scheduleUpcoming };

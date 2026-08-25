@@ -220,13 +220,16 @@ const Mushaf = (() => {
     await turnTo(data.ayahs[0].page);
 
     // Trim the audio queue so playback starts at ayah 1 of the selected surah.
-    const idx = currentAyahs.findIndex(a => a.number === firstGlobal);
+    // Use loose numeric comparison: different API endpoints may return numbers
+    // as strings vs numbers, and strict === would silently miss the match.
+    const idx = currentAyahs.findIndex(a => Number(a.number) === Number(firstGlobal));
     if (idx > 0) currentAyahs = currentAyahs.slice(idx);
 
-    // The page may begin with the tail of the previous surah.  Remove those
-    // leading ayahs from the right-sheet DOM so the reader sees the selected
-    // surah at the very top of the displayed content.
-    clipPageToSurah('mushafPage', firstGlobal);
+    // The page may begin with the tail of the previous surah. Try the right
+    // sheet first; if the surah starts on an even page it will be on the left.
+    if (!clipPageToSurah('mushafPage', firstGlobal)) {
+      clipPageToSurah('mushafPageLeft', firstGlobal);
+    }
 
     setStatus(`سورة ${data.name} — ${data.numberOfAyahs} آية — تبدأ في الصفحة ${data.ayahs[0].page}`);
   }
@@ -239,9 +242,9 @@ const Mushaf = (() => {
    */
   function clipPageToSurah(containerId, firstGlobal) {
     const container = document.getElementById(containerId);
-    if (!container) return;
+    if (!container) return false;
     const firstEl = container.querySelector(`.ayah[data-global="${firstGlobal}"]`);
-    if (!firstEl) return;          // surah is on the other sheet — nothing to clip
+    if (!firstEl) return false;   // first ayah is on the other sheet
 
     // Walk backwards to include the surah-banner (and basmalah) above the ayah.
     let cutEl = firstEl;
@@ -256,6 +259,7 @@ const Mushaf = (() => {
     while (cutEl.previousElementSibling) {
       cutEl.previousElementSibling.remove();
     }
+    return true;
   }
 
   async function loadJuz(juzNum) {
@@ -263,9 +267,11 @@ const Mushaf = (() => {
     const data = await fetchJuz(juzNum);
     const firstGlobal = data.ayahs[0].number;
     await turnTo(data.ayahs[0].page);
-    const idx = currentAyahs.findIndex(a => a.number === firstGlobal);
+    const idx = currentAyahs.findIndex(a => Number(a.number) === Number(firstGlobal));
     if (idx > 0) currentAyahs = currentAyahs.slice(idx);
-    clipPageToSurah('mushafPage', firstGlobal);
+    if (!clipPageToSurah('mushafPage', firstGlobal)) {
+      clipPageToSurah('mushafPageLeft', firstGlobal);
+    }
     setStatus(`الجزء ${toArabicDigits(juzNum)} — يبدأ في الصفحة ${data.ayahs[0].page}`);
   }
 
@@ -274,9 +280,11 @@ const Mushaf = (() => {
     const data = await fetchHizb(hizbNum);
     const firstGlobal = data.ayahs[0].number;
     await turnTo(data.ayahs[0].page);
-    const idx = currentAyahs.findIndex(a => a.number === firstGlobal);
+    const idx = currentAyahs.findIndex(a => Number(a.number) === Number(firstGlobal));
     if (idx > 0) currentAyahs = currentAyahs.slice(idx);
-    clipPageToSurah('mushafPage', firstGlobal);
+    if (!clipPageToSurah('mushafPage', firstGlobal)) {
+      clipPageToSurah('mushafPageLeft', firstGlobal);
+    }
     setStatus(`الربع ${toArabicDigits(hizbNum)} — يبدأ في الصفحة ${data.ayahs[0].page}`);
   }
 
@@ -321,6 +329,7 @@ const Mushaf = (() => {
       btn.disabled = !playing;
       btn.textContent = paused ? '▶ استكمال' : '⏸ إيقاف مؤقت';
     };
+    player.onError = (msg) => setStatus(msg);
     player.onItemStart = (item) => highlightAyah(container, item.globalNumber);
     player.onQueueEnd = async () => {
       // Reaching the end of a page turns to the next one and keeps reciting, the
@@ -389,16 +398,18 @@ const Mushaf = (() => {
     });
     document.getElementById('btnPrevPage').addEventListener('click', () => goPage(-1));
     document.getElementById('btnNextPage').addEventListener('click', () => goPage(1));
-    document.getElementById('btnSheetPrev').addEventListener('click', () => goPage(-1));
-    document.getElementById('btnSheetNext').addEventListener('click', () => goPage(1));
+    // Sheet arrows: the right-pointing SVG (btnSheetPrev) advances to higher pages
+    // and the left-pointing SVG (btnSheetNext) goes back to lower pages, matching
+    // the standard convention where › means forward and ‹ means back.
+    document.getElementById('btnSheetPrev').addEventListener('click', () => goPage(1));
+    document.getElementById('btnSheetNext').addEventListener('click', () => goPage(-1));
 
     // Arrow keys turn pages, unless the user is typing in a field.
     document.addEventListener('keydown', (e) => {
       if (!document.getElementById('tab-mushaf').classList.contains('active')) return;
       if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
-      // RTL reading: Left arrow advances, Right arrow goes back.
-      if (e.key === 'ArrowLeft') { e.preventDefault(); goPage(1); }
-      if (e.key === 'ArrowRight') { e.preventDefault(); goPage(-1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); goPage(1); }
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); goPage(-1); }
     });
     document.getElementById('chkTajweedOn').addEventListener('change', render);
     initViewMode();
