@@ -7,6 +7,9 @@
 const Memorize = (() => {
   let player = null;
   let loadedAyahs = [];
+  // Page scope shows one real mushaf page at a time (not the whole range
+  // concatenated) and flips to the next when its repeats finish.
+  let memPageFrom = 1, memPageTo = 1, memCurPage = 1;
 
   function setStatus(msg) {
     const line = document.querySelector('.status-line');
@@ -64,6 +67,30 @@ const Memorize = (() => {
     show('memPageGroup',  scope === 'page');
     show('memJuzGroup',   scope === 'juz');
     show('memHizbGroup',  scope === 'hizb');
+    if (scope !== 'page') {
+      const nav = document.getElementById('memPageNav');
+      if (nav) nav.hidden = true;
+    }
+  }
+
+  /** Load exactly one page (page scope) and refresh the flip-nav bar. */
+  async function loadPageAt(pageNum) {
+    memCurPage = Math.max(memPageFrom, Math.min(memPageTo, pageNum));
+    const data = await fetchPage(memCurPage);
+    loadedAyahs = data.ayahs;
+    render();
+    updateMemPageNav();
+    setStatus(`الصفحة ${Mushaf.toArabicDigits(memCurPage)} — ${loadedAyahs.length} آية.`);
+  }
+
+  function updateMemPageNav() {
+    const nav = document.getElementById('memPageNav');
+    if (!nav) return;
+    nav.hidden = document.getElementById('memScope').value !== 'page';
+    document.getElementById('memPageLabel').textContent =
+      `الصفحة ${Mushaf.toArabicDigits(memCurPage)} (${Mushaf.toArabicDigits(memPageFrom)}–${Mushaf.toArabicDigits(memPageTo)})`;
+    document.getElementById('btnMemPagePrev').disabled = memCurPage <= memPageFrom;
+    document.getElementById('btnMemPageNext').disabled = memCurPage >= memPageTo;
   }
 
   async function loadScope() {
@@ -92,7 +119,13 @@ const Memorize = (() => {
       if (from > to) [from, to] = [to, from];
       document.getElementById('memPageFrom').value = from;
       document.getElementById('memPageTo').value = to;
-      loadedAyahs = await fetchPageRange(from, to);
+      memPageFrom = from;
+      memPageTo = to;
+      // One real page at a time, not the whole range poured into one block —
+      // loadPageAt() renders and reports status itself, so skip the generic
+      // render()/setStatus() calls below for this scope.
+      await loadPageAt(from);
+      return;
 
     } else if (scope === 'juz') {
       loadedAyahs = (await fetchJuz(+document.getElementById('memJuz').value)).ayahs;
@@ -148,13 +181,25 @@ const Memorize = (() => {
     player = player || new AyahQueuePlayer(document.getElementById('audioPlayer'));
     player.setQueue(buildRepeatedQueue());
     player.onStateChange = reflectState;
+    player.onError = setStatus;
     player.onItemStart = (item) => {
       container.querySelectorAll('.ayah.playing').forEach(x => x.classList.remove('playing'));
       const el = container.querySelector(`.ayah[data-global="${item.globalNumber}"]`);
       if (el) { el.classList.add('playing'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
       setStatus(`آية ${item.numberInSurah} — تكرار ${item.rep}/${item.repTotal} — جولة ${item.pass}`);
     };
-    player.onQueueEnd = () => setStatus('اكتمل الترديد. أحسنت!');
+    player.onQueueEnd = () => {
+      // Page scope: flip to the next page in range and keep reciting, the way
+      // a reader turns the leaf without stopping — instead of dumping every
+      // page into one continuous block.
+      const scope = document.getElementById('memScope').value;
+      if (scope === 'page' && memCurPage < memPageTo) {
+        setStatus('جارٍ الانتقال للصفحة التالية...');
+        loadPageAt(memCurPage + 1).then(play).catch(err => setStatus('خطأ: ' + err.message));
+        return;
+      }
+      setStatus('اكتمل الترديد. أحسنت!');
+    };
     player.start();
   }
 
@@ -181,6 +226,15 @@ const Memorize = (() => {
     document.getElementById('btnMemStop').addEventListener('click', stop);
     document.getElementById('memHideText').addEventListener('change', render);
     document.getElementById('memTajweed').addEventListener('change', render);
+
+    document.getElementById('btnMemPagePrev').addEventListener('click', () => {
+      if (player) player.stop();
+      loadPageAt(memCurPage - 1).catch(err => setStatus('خطأ: ' + err.message));
+    });
+    document.getElementById('btnMemPageNext').addEventListener('click', () => {
+      if (player) player.stop();
+      loadPageAt(memCurPage + 1).catch(err => setStatus('خطأ: ' + err.message));
+    });
   }
 
   return {

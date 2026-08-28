@@ -195,11 +195,28 @@ const Worship = (() => {
 
     lastTimings = t;
     Alerts.setTimings(t);
+    // Keep today's tuned times around so the native alarm scheduler can still
+    // run when the app is next opened with no internet connection.
+    try {
+      localStorage.setItem('worship:lastTimings',
+        JSON.stringify({ date: new Date().toDateString(), t }));
+    } catch (e) { /* quota */ }
     syncSettingsToHost();
   }
 
   let lastTimings = null;
   const currentTimings = () => lastTimings;
+
+  /** Restore today's previously fetched times (offline startup) for the alarm scheduler. */
+  function reuseCachedTimings() {
+    try {
+      const raw = JSON.parse(localStorage.getItem('worship:lastTimings'));
+      if (raw && raw.date === new Date().toDateString() && raw.t) {
+        lastTimings = raw.t;
+        Alerts.setTimings(raw.t);
+      }
+    } catch (e) { /* none cached */ }
+  }
 
   /*
    * Mirror the settings the background reminder service needs into the desktop
@@ -351,8 +368,12 @@ const Worship = (() => {
       localStorage.removeItem('worship:tune');
       refresh().catch(() => {});
     });
-    // Reuse a previously granted location without prompting again.
-    if (localStorage.getItem('worship:coords')) refresh().catch(() => {});
+    // Reuse a previously granted location without prompting again. If the
+    // refetch fails (offline), fall back to today's cached times so the native
+    // prayer alarms still get scheduled instead of silently not existing.
+    if (localStorage.getItem('worship:coords')) {
+      refresh().catch(() => {}).finally(() => { if (!lastTimings) reuseCachedTimings(); });
+    }
 
     // A session left open across midnight (the desktop app, a pinned tab) would
     // otherwise keep announcing yesterday's times forever - recheck the date

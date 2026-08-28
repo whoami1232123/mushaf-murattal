@@ -64,11 +64,27 @@ const Alerts = (() => {
   }
 
   /** Deep bell chime — A3/D3/A3 (220/147/220 Hz) for an authoritative male tone. */
+  /* One shared AudioContext: Android WebView starts it suspended unless a user
+     gesture created/resumed it, and a context built inside a timer tick stays
+     silent forever. Unlock on the first touch anywhere. */
+  let _chimeCtx = null;
+  function audioCtx() {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    if (!_chimeCtx) {
+      try { _chimeCtx = new Ctx(); } catch (e) { return null; }
+      document.addEventListener('pointerdown', () => {
+        if (_chimeCtx && _chimeCtx.state === 'suspended') _chimeCtx.resume().catch(() => {});
+      }, { capture: true });
+    }
+    if (_chimeCtx.state === 'suspended') _chimeCtx.resume().catch(() => {});
+    return _chimeCtx;
+  }
+
   function chime() {
     try {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
-      const ctx = new Ctx();
+      const ctx = audioCtx();
+      if (!ctx) return;
       const now = ctx.currentTime;
       [[0, 220], [0.5, 147], [1.0, 220]].forEach(([t, freq]) => {
         const osc = ctx.createOscillator();
@@ -82,50 +98,80 @@ const Alerts = (() => {
         osc.start(now + t);
         osc.stop(now + t + 1.0);
       });
-      setTimeout(() => ctx.close(), 3500);
     } catch (e) { /* audio unavailable */ }
   }
 
   /* Prefer a male Arabic TTS voice: match known male voice names first, and
-     never pick a voice known to be female. If the device exposes only female
-     Arabic voices the best available one is used - nothing else we can do. */
+     never pick a voice known to be female when a male/unmarked one exists.
+     If the device exposes only female or unmarked Arabic voices, the pitch is
+     dropped hard in speak() so the announcement still reads as a man's voice. */
   const MALE_VOICE_HINTS = ['maged', 'hamed', 'naayf', 'shakir', 'tarik',
     'fahed', 'fahad', 'hamdan', 'muhammad', 'mohammed', 'omar', 'male'];
   const FEMALE_VOICE_HINTS = ['zariyah', 'salma', 'laila', 'layla', 'amany',
     'amira', 'sana', 'hoda', 'reem', 'mariam', 'female'];
 
-  let arabicVoice = null;   // resolved once voices load, then reused
+  let arabicVoice = null;          // resolved once voices load, then reused
+  let arabicVoiceGender = 1;       // 0 known-female, 1 unknown, 2 known-male
 
   function pickArabicVoice() {
     const voices = speechSynthesis.getVoices().filter(v => v.lang && v.lang.startsWith('ar'));
-    if (!voices.length) return null;
+    if (!voices.length) { arabicVoice = null; arabicVoiceGender = 1; return null; }
     const gender = (v) => {
       const n = (v.name || '').toLowerCase();
       if (FEMALE_VOICE_HINTS.some(h => n.includes(h))) return 0;
       if (MALE_VOICE_HINTS.some(h => n.includes(h))) return 2;
       return 1;   // unmarked voices outrank known-female ones
     };
-    return voices.sort((a, b) => gender(b) - gender(a))[0];
+    voices.sort((a, b) => gender(b) - gender(a));
+    arabicVoice = voices[0];
+    arabicVoiceGender = gender(arabicVoice);
+    return arabicVoice;
   }
 
   /** Speak the announcement in Arabic so the user need not be looking. */
   function speak(text) {
     try {
       if (!('speechSynthesis' in window)) return;
+      if (!arabicVoice) pickArabicVoice();
       const u = new SpeechSynthesisUtterance(text);
       u.lang = 'ar-SA';
-      u.rate = 0.85;
-      u.pitch = 0.75;   // lower pitch reinforces the masculine, authoritative tone
-      if (!arabicVoice) arabicVoice = pickArabicVoice();
+      u.rate = 0.9;
+      // A confirmed male voice needs no help; anything else gets pitched down
+      // so even a female base voice leans masculine. 0.1 was so deep it turned
+      // unintelligible on several devices - 0.55 stays natural.
+      u.pitch = arabicVoiceGender === 2 ? 0.8 : 0.55;
       if (arabicVoice) u.voice = arabicVoice;
       speechSynthesis.speak(u);
     } catch (e) { /* speech unavailable */ }
   }
 
-  function announce(title, body) {
+  /** Play a bundled male-voice clip; resolves false when missing/blocked so the
+      caller can fall back to TTS. */
+  function playVoiceClip(key) {
+    return new Promise(resolve => {
+      if (!key) { resolve(false); return; }
+      try {
+        const a = new Audio(`assets/audio/alerts/${key}.mp3`);
+        let done = false;
+        const finish = ok => { if (!done) { done = true; resolve(ok); } };
+        a.onended = () => finish(true);
+        a.onerror = () => finish(false);
+        const p = a.play();
+        if (p && p.catch) p.catch(() => finish(false));
+        setTimeout(() => finish(false), 15000);   // stuck loading — give up
+      } catch (e) { resolve(false); }
+    });
+  }
+
+  function announce(title, body, voiceKey) {
     chime();
     // Let the chime finish before the voice starts, or they talk over each other.
-    setTimeout(() => speak(title), 700);
+    // Bundled male recording first; device TTS only if the clip is missing or
+    // the WebView blocked playback outside a user gesture.
+    setTimeout(async () => {
+      const played = await playVoiceClip(voiceKey);
+      if (!played) speak(title);
+    }, 700);
 
     if ('Notification' in window && Notification.permission === 'granted') {
       try {
@@ -154,7 +200,8 @@ const Alerts = (() => {
       for (const k in PRAYER_LABELS) {
         if (!timings[k]) continue;
         out.push({ key: 'p:' + k, at: minutesFromMidnight(timings[k].slice(0, 5)),
-                   title: `حان الآن موعد ${PRAYER_LABELS[k]}`, body: timings[k].slice(0, 5) });
+                   title: `حان الآن موعد ${PRAYER_LABELS[k]}`, body: timings[k].slice(0, 5),
+                   voice: k.toLowerCase() });   // fajr.mp3, dhuhr.mp3, ...
       }
     }
     if (p.adhkar !== false) {
@@ -163,7 +210,8 @@ const Alerts = (() => {
         const a = ADHKAR_AFTER[k];
         out.push({ key: 'a:' + a.set,
                    at: minutesFromMidnight(timings[k].slice(0, 5)) + a.offsetMin,
-                   title: `حان وقت ${a.label}`, body: 'اضغط لفتح الأذكار', set: a.set });
+                   title: `حان وقت ${a.label}`, body: 'اضغط لفتح الأذكار', set: a.set,
+                   voice: a.set });   // morning.mp3, evening.mp3, sleep.mp3
       }
     }
     return out.sort((x, y) => x.at - y.at);
@@ -177,7 +225,7 @@ const Alerts = (() => {
       // reminder whose time passed long ago (e.g. app opened at night) stays quiet.
       if (now >= item.at && now - item.at <= 2 && !fired.has(item.key)) {
         markFired(item.key);
-        announce(item.title, item.body);
+        announce(item.title, item.body, item.voice);
       }
     }
     renderNext();
@@ -216,15 +264,19 @@ const Alerts = (() => {
 
   /* On a native build (Android/iOS via Capacitor) hand the next week of prayer
      and adhkar times to the OS as real scheduled alarms, so they fire even with
-     the app fully closed. No-op on the web/PWA/desktop build. */
+     the app fully closed. No-op on the web/PWA/desktop build. Resolves with the
+     scheduler's result so callers can report the true outcome to the reader. */
   function scheduleNative() {
-    if (!window.Worship) return;
+    if (!window.Worship) return Promise.resolve(null);
     // Desktop: hand the current prefs to the Python-side reminder service.
     if (Worship.syncSettingsToHost) Worship.syncSettingsToHost();
-    if (!window.NativeAlerts || !NativeAlerts.isNative()) return;
-    NativeAlerts.scheduleUpcoming(Worship.fetchTimingsForDate, prefs())
-      .then(showNativeStatus)
-      .catch(() => showNativeStatus({ scheduled: false, reason: 'error' }));
+    if (!window.NativeAlerts || !NativeAlerts.isNative()) return Promise.resolve(null);
+    return NativeAlerts.scheduleUpcoming(Worship.fetchTimingsForDate, prefs())
+      .then(res => { showNativeStatus(res); return res; })
+      .catch(() => {
+        showNativeStatus({ scheduled: false, reason: 'error' });
+        return { scheduled: false, reason: 'error' };
+      });
   }
 
   /* Make the invisible part (OS-level alarms) diagnosable: without this line a
@@ -249,18 +301,60 @@ const Alerts = (() => {
     }
   }
 
-  function reflectToggles() {
+  async function reflectToggles() {
     const p = prefs();
     el('alertPrayers').checked = p.prayers !== false;
     el('alertAdhkar').checked = p.adhkar !== false;
-    const granted = ('Notification' in window) && Notification.permission === 'granted';
+    let granted = ('Notification' in window) && Notification.permission === 'granted';
+    // The Android WebView has no web Notification API at all, so on a native
+    // build the OS permission lives behind the plugin - ask it, or the button
+    // would claim alerts are off even though they were granted.
+    if (!granted && window.NativeAlerts && NativeAlerts.isNative()) {
+      try {
+        const perm = await window.Capacitor.Plugins.LocalNotifications.checkPermissions();
+        granted = perm.display === 'granted';
+      } catch (e) { /* keep web verdict */ }
+    }
     el('btnEnableAlerts').textContent = granted ? '🔔 التنبيهات مفعّلة' : '🔔 تفعيل التنبيهات';
     el('btnEnableAlerts').classList.toggle('primary', !granted);
+  }
+
+  /* Map an OS notification title back to its bundled voice clip, so alarms fired
+     by Android itself still get the male announcement while the app is open. */
+  function voiceKeyForTitle(title) {
+    const t = title || '';
+    for (const k in PRAYER_LABELS) {
+      if (t.includes(PRAYER_LABELS[k])) return k.toLowerCase();
+    }
+    for (const k in ADHKAR_AFTER) {
+      if (t.includes(ADHKAR_AFTER[k].label)) return ADHKAR_AFTER[k].set;
+    }
+    return null;
+  }
+
+  function listenForNativeFired() {
+    const plugins = window.Capacitor && window.Capacitor.Plugins;
+    const ln = plugins && plugins.LocalNotifications;
+    if (!ln || !ln.addListener || !window.NativeAlerts || !NativeAlerts.isNative()) return;
+    ln.addListener('localNotificationReceived', n => {
+      chime();
+      setTimeout(async () => {
+        const key = voiceKeyForTitle(n && n.title);
+        const played = await playVoiceClip(key);
+        if (!played) speak((n && n.title) || 'تنبيه');
+      }, 700);
+      // The 10-second test alarm proving the pipeline works end-to-end.
+      if (n && n.title && n.title.includes('تجريبي')) {
+        const box = el('nativeAlertStatus');
+        if (box) box.textContent = '✅ وصل إشعار الاختبار — التنبيهات تعمل على هذا الجهاز.';
+      }
+    });
   }
 
   function init() {
     if (!el('alertPrayers')) return;
     reflectToggles();
+    listenForNativeFired();
 
     // Voice lists load asynchronously on some platforms; re-resolve when they
     // arrive, otherwise the first announcement uses whatever was available.
@@ -286,20 +380,47 @@ const Alerts = (() => {
 
       // Play a sample so the user hears exactly what a reminder sounds like, and
       // so the first audio happens inside a user gesture (browsers require that).
-      announce('تم تفعيل التنبيهات', state === 'granted'
+      // On Android the web permission state is meaningless (no web Notification
+      // API in the WebView), so the sample message stays neutral there.
+      const onNative = window.NativeAlerts && NativeAlerts.isNative();
+      announce('تم تفعيل التنبيهات', state === 'granted' || onNative
         ? locationNote
-        : 'الصوت يعمل، لكن إشعارات النظام مرفوضة');
+        : 'الصوت يعمل، لكن إشعارات النظام مرفوضة', 'enabled');
 
       // Explicitly reschedule native alarms now that the user has granted
       // permissions. This covers the case where coords were already saved but
       // native alarms had never been scheduled (fresh install, cleared data).
-      scheduleNative();
+      // When scheduling fails, say why - silence here is what makes alerts
+      // look broken even though everything else worked.
+      const res = await scheduleNative();
+      if (res && !(res.scheduled && res.count > 0)) {
+        if (res.reason === 'permission-denied') {
+          announce('إشعارات النظام مرفوضة',
+            'افتح إعدادات النظام واسمح للتطبيق بالإشعارات حتى تصلك التنبيهات والتطبيق مغلق');
+        } else if (res.reason === 'error') {
+          announce('تعذّر جدولة تنبيهات النظام',
+            'تأكد من الاتصال بالإنترنت ثم أعد فتح التطبيق');
+        }
+      }
+      reflectToggles();
     });
 
     el('alertPrayers').addEventListener('change', e => { setPref('prayers', e.target.checked); renderNext(); scheduleNative(); });
     el('alertAdhkar').addEventListener('change', e => { setPref('adhkar', e.target.checked); renderNext(); scheduleNative(); });
-    el('btnTestAlert').addEventListener('click', () =>
-      announce('تجربة التنبيه', 'هكذا سيصلك تنبيه الصلاة والأذكار'));
+    el('btnTestAlert').addEventListener('click', async () => {
+      announce('تجربة التنبيه', 'هكذا سيصلك تنبيه الصلاة والأذكار', 'test');
+      // On the app also prove the OS-level alarm path: a real notification ~10s
+      // out. Silence after this point means the device is blocking alarms.
+      if (window.NativeAlerts && NativeAlerts.isNative()) {
+        const box = el('nativeAlertStatus');
+        const res = await NativeAlerts.scheduleTest().catch(() => ({ scheduled: false, reason: 'error' }));
+        if (box) {
+          box.textContent = res.scheduled
+            ? '⏳ سيصل إشعار اختبار خلال ١٠ ثوانٍ — إن لم يصل، فعِّل التطبيق في إعدادات البطارية (بدون قيود).'
+            : '⚠️ تعذّر جدولة إشعار الاختبار — اسمح بالإشعارات ثم أعد المحاولة.';
+        }
+      }
+    });
 
     clearInterval(ticker);
     ticker = setInterval(tick, 30000);   // half-minute resolution is enough

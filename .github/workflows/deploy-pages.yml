@@ -30,7 +30,7 @@ jobs:
       - name: Stage only the web app's static files
         run: |
           mkdir _site
-          cp index.html manifest.json sw.js _site/
+          cp index.html manifest.json sw.js privacy.html _site/
           cp -r css js icons _site/
 
       - uses: actions/configure-pages@v5

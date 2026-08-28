@@ -176,6 +176,12 @@ button.primary:hover { background: var(--accent-dark); }
 
 .mem-status { padding: 6px 4px; color: var(--accent-dark); font-weight: 600; min-height: 1.4em; }
 
+.mem-page-nav {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  padding: 8px 4px; font-weight: 700; color: var(--accent-dark);
+}
+.mem-page-nav button:disabled { opacity: .45; cursor: default; }
+
 .quiz-score { font-weight: 700; color: var(--accent-dark); }
 
 .quiz-q { text-align: center; }
@@ -1156,3 +1162,83 @@ select.wide { width: 100%; max-width: 420px; }
   .surah-banner-meta { font-size: .7rem; }
   .basmalah { font-size: 1.35rem; margin: 2px 0 10px; }
 }
+
+/* ===================== Focus reading mode ===================== */
+
+/* Slim strip that stays at the very top; the chevron pulls the menus down
+   (or pushes them away again) for a bigger reading area. */
+.focus-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 2px 8px;
+  background: var(--accent-dark);
+  color: #fff;
+}
+#btnFocusToggle {
+  background: transparent;
+  border: none;
+  color: #fff;
+  width: 34px;
+  height: 26px;
+  padding: 2px;
+  border-radius: 8px;
+}
+#btnFocusToggle:hover { background: rgba(255,255,255,.15); }
+#btnFocusToggle svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  margin: 0 auto;
+  transition: transform .25s;
+}
+/* Collapsed (focus-on): chevron points down = "pull the menus down". */
+body.focus-on #btnFocusToggle svg { transform: rotate(180deg); }
+.focus-label {
+  font-size: .78rem;
+  font-weight: 600;
+  color: rgba(255,255,255,.85);
+}
+
+body.focus-on .app-header,
+body.focus-on #tab-mushaf .search-wrap,
+body.focus-on #tab-mushaf .nav-bar,
+body.focus-on #tab-mushaf .tip,
+body.focus-on .legend-side { display: none !important; }
+body.focus-on #app { padding-top: 10px; }
+
+/* Reading mode fills the screen: the leaf stretches from the slim focus bar
+   down to the bottom edge, like a real mushaf page with no dead gap under it.
+   Tab panels are IDs (#tab-mushaf), not classes - a ".tab-mushaf" selector here
+   matched nothing and left a dead gap under the page. */
+body.focus-on #tab-mushaf.active .read-layout {
+  min-height: calc(100vh - 40px);
+  min-height: calc(100dvh - 40px);
+}
+body.focus-on #app { padding-bottom: 0; }
+body.focus-on .read-layout { align-items: stretch; }
+body.focus-on .mushaf-book {
+  display: flex;
+  flex-direction: column;
+}
+body.focus-on .mushaf-spread {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+body.focus-on .mushaf-sheet {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+/* Flex display would override the hidden attribute on the left leaf in
+   single-page mode - keep it truly out of layout. */
+body.focus-on .mushaf-sheet[hidden] { display: none; }
+body.focus-on .mushaf-sheet .mushaf-page { flex: 1; }
+body.focus-on footer.footer { display: none; }

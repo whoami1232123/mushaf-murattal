@@ -16,7 +16,11 @@ DESKTOP = os.path.join(ROOT, "desktop")
 NAME = "MushafMurattal"
 
 # Web assets to embed. Anything listed here ends up under _MEIPASS/webapp/.
-ASSETS = ["index.html", "manifest.json", "sw.js", "css", "js", "icons"]
+# "assets" carries the bundled male-voice alert clips (assets/audio/alerts/) -
+# without it playVoiceClip() 404s on desktop and silently falls back to
+# WebView2's system TTS, which is why the male voice previously only worked
+# on Android (its build script copies "assets" separately via cap sync).
+ASSETS = ["index.html", "manifest.json", "sw.js", "css", "js", "icons", "assets"]
 
 
 def main():

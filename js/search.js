@@ -77,9 +77,8 @@ const Search = (() => {
            escapeHtml(text.slice(end));
   }
 
-  async function run() {
-    const raw = el('searchInput').value.trim();
-    const box = el('searchResults');
+  async function run(input, box) {
+    const raw = input.value.trim();
     if (!raw) { box.hidden = true; box.innerHTML = ''; return; }
     lastQuery = raw;
     box.hidden = false;
@@ -117,7 +116,7 @@ const Search = (() => {
     if (num === null && normalizeArabic(raw).length >= 2) {
       parts.push(sectionHtml('البحث في نص القرآن', '<div class="search-loading">جارٍ البحث...</div>'));
       box.innerHTML = parts.join('');
-      bindJumps();
+      bindJumps(box);
 
       try {
         const { total, matches } = await searchQuranText(raw);
@@ -144,11 +143,11 @@ const Search = (() => {
       parts.push(sectionHtml('لا نتائج', '<div class="search-empty">اكتب رقم صفحة، أو اسم سورة، أو جزءاً من آية.</div>'));
     }
     box.innerHTML = parts.join('');
-    bindJumps();
+    bindJumps(box);
   }
 
-  function bindJumps() {
-    document.querySelectorAll('#searchResults [data-kind]').forEach(btn => {
+  function bindJumps(box) {
+    box.querySelectorAll('[data-kind]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const v = +btn.dataset.value;
         // Search lives in the mushaf tab, so make sure it is the visible one.
@@ -158,7 +157,7 @@ const Search = (() => {
           else if (btn.dataset.kind === 'surah') await Mushaf.loadSurah(v);
           else if (btn.dataset.kind === 'juz') await Mushaf.loadJuz(v);
           else if (btn.dataset.kind === 'ayah') await Mushaf.gotoAyah(v);
-          close();
+          closeAll();
         } catch (err) {
           document.querySelector('.status-line').textContent = 'تعذّر الانتقال: ' + err.message;
         }
@@ -166,29 +165,40 @@ const Search = (() => {
     });
   }
 
-  function close() {
-    el('searchResults').hidden = true;
+  function closeAll() {
+    document.querySelectorAll('.search-results').forEach(box => { box.hidden = true; });
   }
 
-  function init() {
-    const input = el('searchInput');
+  /* The same smart search bar lives on both the mushaf and memorize tabs, so
+     bind every .search-wrap rather than hard-coded element ids. */
+  function bindBar(wrap) {
+    const input = wrap.querySelector('input');
+    const box = wrap.querySelector('.search-results');
+    if (!input || !box) return;
     let debounce = null;
 
     input.addEventListener('input', () => {
       clearTimeout(debounce);
       // Wait for a pause in typing so each keystroke does not fire a request.
-      debounce = setTimeout(run, 350);
+      debounce = setTimeout(() => run(input, box), 350);
     });
     input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { clearTimeout(debounce); run(); }
-      if (e.key === 'Escape') { input.value = ''; close(); }
+      if (e.key === 'Enter') { clearTimeout(debounce); run(input, box); }
+      if (e.key === 'Escape') { input.value = ''; box.hidden = true; }
     });
-    el('btnSearch').addEventListener('click', () => { clearTimeout(debounce); run(); });
-    el('btnSearchClear').addEventListener('click', () => { input.value = ''; close(); input.focus(); });
+    wrap.querySelector('.primary').addEventListener('click', () => {
+      clearTimeout(debounce); run(input, box);
+    });
+    wrap.querySelectorAll('button:not(.primary)').forEach(btn =>
+      btn.addEventListener('click', () => { input.value = ''; box.hidden = true; input.focus(); }));
+  }
+
+  function init() {
+    document.querySelectorAll('.search-wrap').forEach(bindBar);
 
     // Clicking outside the search area dismisses the results panel.
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('.search-bar') && !e.target.closest('#searchResults')) close();
+      if (!e.target.closest('.search-bar') && !e.target.closest('.search-results')) closeAll();
     });
   }
 

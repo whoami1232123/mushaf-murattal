@@ -10,6 +10,7 @@ const AyahActions = (() => {
 
   function ensurePlayer() {
     player = player || new AyahQueuePlayer(el('ayahAudio'));
+    player.onError = (msg) => { el('sheetStatus').textContent = msg; };
     return player;
   }
 

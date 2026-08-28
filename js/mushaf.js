@@ -4,6 +4,16 @@ const Mushaf = (() => {
   let currentAyahs = [];
   let player = null;
 
+  /* Global ayah number the current surah/juz/hizb selection starts with, or null.
+     Kept until the reader pages away by hand, so a tajweed/view-mode re-render
+     still shows the selection from its beginning rather than the raw page top. */
+  let clipTarget = null;
+
+  /* Global ayah number playback should start from (set by gotoAyah after a
+     search jump), consumed once by playCurrent so ▶ starts at the found ayah
+     instead of the top of the page. */
+  let playFromGlobal = null;
+
   function renderAyahs(container, ayahs, { tajweedOn = true } = {}) {
     container.classList.toggle('no-tajweed', !tajweedOn);
     const parts = [];
@@ -86,10 +96,15 @@ const Mushaf = (() => {
 
   const spreadOn = () => document.getElementById('chkSpread').checked;
 
+  /* Phones get one page only: two leaves are too cramped on a small screen, and
+     the native app has no room for the switcher either. */
+  const singlePageOnly = () =>
+    window.innerWidth < 768 || (window.NativeAlerts && NativeAlerts.isNative());
+
   /* One page or two, chosen explicitly. The hidden checkbox stays as the single
      source of truth the rest of the module reads. */
   function setViewMode(mode, { reload = true } = {}) {
-    const twoUp = mode === 'spread';
+    const twoUp = mode === 'spread' && !singlePageOnly();
     document.getElementById('chkSpread').checked = twoUp;
     localStorage.setItem('mushaf:spread', twoUp ? '1' : '0');
     document.querySelectorAll('#viewMode .seg-btn').forEach(b =>
@@ -100,10 +115,14 @@ const Mushaf = (() => {
   function initViewMode() {
     document.querySelectorAll('#viewMode .seg-btn').forEach(btn =>
       btn.addEventListener('click', () => setViewMode(btn.dataset.mode)));
+    if (singlePageOnly()) {
+      document.getElementById('viewMode').closest('.nav-group').style.display = 'none';
+    }
     // Two leaves need room, so a narrow screen starts on a single page unless the
     // user has already chosen otherwise.
+    const forced = singlePageOnly();
     const saved = localStorage.getItem('mushaf:spread');
-    const twoUp = saved === null ? window.innerWidth >= 1100 : saved === '1';
+    const twoUp = forced ? false : saved === null ? window.innerWidth >= 1100 : saved === '1';
     setViewMode(twoUp ? 'spread' : 'single', { reload: false });
   }
 
@@ -129,6 +148,14 @@ const Mushaf = (() => {
     currentAyahs = leftData ? rightData.ayahs.concat(leftData.ayahs) : rightData.ayahs;
     currentPage = pair.right;
 
+    // A surah/juz/hizb selection keeps governing playback too: skip whatever
+    // precedes its first ayah on this page (no-op when nothing is selected or
+    // the first ayah is not on the current spread, e.g. after auto page-turn).
+    if (clipTarget) {
+      const idx = currentAyahs.findIndex(a => Number(a.number) === Number(clipTarget));
+      if (idx > 0) currentAyahs = currentAyahs.slice(idx);
+    }
+
     if (direction) {
       const distance = Math.abs(pageNum - from);
       if (distance > (twoUp ? 2 : 1)) await riffle(direction, distance);
@@ -144,6 +171,8 @@ const Mushaf = (() => {
       renderSheet('mushafPageLeft', leftData.ayahs);
       updateSheetChrome(leftData.ayahs, pair.left, 'Left');
     }
+
+    applyStickyClip();
 
     document.getElementById('selPage').value = pair.right;
     document.getElementById('bookNavLabel').textContent = leftData
@@ -205,33 +234,47 @@ const Mushaf = (() => {
     document.getElementById('sheetJuzName' + suffix).textContent =
       'الجزء ' + toArabicDigits(ayahs[0].juz);
     document.getElementById('pageMedallion' + suffix).textContent = toArabicDigits(pageNum);
+    // The focus bar is the only chrome left in reading mode - keep it oriented.
+    if (!suffix) {
+      const fl = document.getElementById('focusLabel');
+      if (fl) {
+        const shortName = (typeof Search !== 'undefined')
+          ? Search.normalizeArabic(names[0]).replace(/^سوره\s*/, '') : names[0];
+        fl.textContent = `${shortName} · ${toArabicDigits(pageNum)}`;
+      }
+    }
   }
 
   /*
-   * Picking a surah / juz / hizb turns the mushaf to the page it begins on.
-   * The view is page-based now (framed leaf, page number, spread), so pouring a
-   * whole surah into one leaf would contradict that - and a real mushaf works
-   * this way too.
+   * Picking a surah / juz / hizb turns the mushaf to the page it begins on and
+   * records that start in clipTarget; the actual clipping happens inside
+   * loadPage so it survives later re-renders (tajweed toggle, view mode).
    */
   async function loadSurah(surahNum) {
     setStatus('جارٍ تحميل السورة...');
     const data = await fetchSurah(surahNum);
-    const firstGlobal = data.ayahs[0].number;
+    stopAudio();
+    clipTarget = data.ayahs[0].number;
+    playFromGlobal = null;
     await turnTo(data.ayahs[0].page);
-
-    // Trim the audio queue so playback starts at ayah 1 of the selected surah.
-    // Use loose numeric comparison: different API endpoints may return numbers
-    // as strings vs numbers, and strict === would silently miss the match.
-    const idx = currentAyahs.findIndex(a => Number(a.number) === Number(firstGlobal));
-    if (idx > 0) currentAyahs = currentAyahs.slice(idx);
-
-    // The page may begin with the tail of the previous surah. Try the right
-    // sheet first; if the surah starts on an even page it will be on the left.
-    if (!clipPageToSurah('mushafPage', firstGlobal)) {
-      clipPageToSurah('mushafPageLeft', firstGlobal);
-    }
-
+    scrollSheetIntoView();
     setStatus(`سورة ${data.name} — ${data.numberOfAyahs} آية — تبدأ في الصفحة ${data.ayahs[0].page}`);
+  }
+
+  /** Re-apply the active selection's clipping to whichever sheet holds its start. */
+  function applyStickyClip() {
+    if (!clipTarget) return;
+    // Try the right sheet first; if the selection starts on an even page in
+    // spread mode it will be on the left sheet instead.
+    if (!clipPageToSurah('mushafPage', clipTarget)) {
+      clipPageToSurah('mushafPageLeft', clipTarget);
+    }
+  }
+
+  /** Bring the reading area to the top so the selection's banner is what is seen. */
+  function scrollSheetIntoView() {
+    const el = document.getElementById('mushafSpread');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   /**
@@ -265,26 +308,22 @@ const Mushaf = (() => {
   async function loadJuz(juzNum) {
     setStatus('جارٍ تحميل الجزء...');
     const data = await fetchJuz(juzNum);
-    const firstGlobal = data.ayahs[0].number;
+    stopAudio();
+    clipTarget = data.ayahs[0].number;
+    playFromGlobal = null;
     await turnTo(data.ayahs[0].page);
-    const idx = currentAyahs.findIndex(a => Number(a.number) === Number(firstGlobal));
-    if (idx > 0) currentAyahs = currentAyahs.slice(idx);
-    if (!clipPageToSurah('mushafPage', firstGlobal)) {
-      clipPageToSurah('mushafPageLeft', firstGlobal);
-    }
+    scrollSheetIntoView();
     setStatus(`الجزء ${toArabicDigits(juzNum)} — يبدأ في الصفحة ${data.ayahs[0].page}`);
   }
 
   async function loadHizb(hizbNum) {
     setStatus('جارٍ تحميل الربع...');
     const data = await fetchHizb(hizbNum);
-    const firstGlobal = data.ayahs[0].number;
+    stopAudio();
+    clipTarget = data.ayahs[0].number;
+    playFromGlobal = null;
     await turnTo(data.ayahs[0].page);
-    const idx = currentAyahs.findIndex(a => Number(a.number) === Number(firstGlobal));
-    if (idx > 0) currentAyahs = currentAyahs.slice(idx);
-    if (!clipPageToSurah('mushafPage', firstGlobal)) {
-      clipPageToSurah('mushafPageLeft', firstGlobal);
-    }
+    scrollSheetIntoView();
     setStatus(`الربع ${toArabicDigits(hizbNum)} — يبدأ في الصفحة ${data.ayahs[0].page}`);
   }
 
@@ -302,6 +341,8 @@ const Mushaf = (() => {
   /** Open the mushaf page containing an ayah and mark that ayah. */
   async function gotoAyah(globalNumber) {
     const meta = await fetchAyah(globalNumber);
+    clipTarget = null;   // an explicit ayah jump replaces any surah/juz/hizb selection
+    playFromGlobal = globalNumber;   // ▶ تشغيل starts from this ayah, not the page top
     await loadPage(meta.page);
     // Look across the spread: the target ayah may be on either leaf.
     const container = document.getElementById('mushafSpread');
@@ -321,9 +362,20 @@ const Mushaf = (() => {
 
   function playCurrent() {
     if (!currentAyahs.length) return;
+    let list = currentAyahs;
+    // A search jump leaves the full page on screen but recitation starts at the
+    // ayah the reader actually asked for.
+    if (playFromGlobal != null) {
+      const idx = list.findIndex(a => Number(a.number) === Number(playFromGlobal));
+      if (idx > 0) {
+        list = list.slice(idx);
+        setStatus(`التشغيل من آية ${list[0].numberInSurah}`);
+      }
+      playFromGlobal = null;
+    }
     const container = document.getElementById('mushafSpread');
     player = player || new AyahQueuePlayer(document.getElementById('audioPlayer'));
-    player.setQueue(currentAyahs.map(queueItemFor));
+    player.setQueue(list.map(queueItemFor));
     player.onStateChange = ({ playing, paused }) => {
       const btn = document.getElementById('btnPausePage');
       btn.disabled = !playing;
@@ -360,6 +412,10 @@ const Mushaf = (() => {
   function goToPage(target) {
     if (turning || target === currentPage) return;
     turning = true;
+    // Paging by hand ends a surah/juz/hizb selection: the reader asked for the
+    // whole leaf, so later re-renders must not re-clip it.
+    clipTarget = null;
+    playFromGlobal = null;
     const direction = target > currentPage ? 1 : -1;
     loadPage(target, direction)
       .catch(err => setStatus(err.message))
@@ -398,18 +454,17 @@ const Mushaf = (() => {
     });
     document.getElementById('btnPrevPage').addEventListener('click', () => goPage(-1));
     document.getElementById('btnNextPage').addEventListener('click', () => goPage(1));
-    // Sheet arrows: the right-pointing SVG (btnSheetPrev) advances to higher pages
-    // and the left-pointing SVG (btnSheetNext) goes back to lower pages, matching
-    // the standard convention where › means forward and ‹ means back.
-    document.getElementById('btnSheetPrev').addEventListener('click', () => goPage(1));
-    document.getElementById('btnSheetNext').addEventListener('click', () => goPage(-1));
+    // Sheet arrows follow the RTL mushaf convention: the book advances toward
+    // the LEFT (next page = left arrow), unlike the LTR media-player habit.
+    document.getElementById('btnSheetPrev').addEventListener('click', () => goPage(-1));
+    document.getElementById('btnSheetNext').addEventListener('click', () => goPage(1));
 
-    // Arrow keys turn pages, unless the user is typing in a field.
+    // Arrow keys match the sheet arrows, unless the user is typing in a field.
     document.addEventListener('keydown', (e) => {
       if (!document.getElementById('tab-mushaf').classList.contains('active')) return;
       if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
-      if (e.key === 'ArrowRight') { e.preventDefault(); goPage(1); }
-      if (e.key === 'ArrowLeft')  { e.preventDefault(); goPage(-1); }
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); goPage(1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); goPage(-1); }
     });
     document.getElementById('chkTajweedOn').addEventListener('change', render);
     initViewMode();

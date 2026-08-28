@@ -8,7 +8,7 @@
  *  - Quran text + recitation audio: stale-while-revalidate into a separate runtime
  *    cache, so pages you have already visited keep working with no connection.
  */
-const CACHE_VERSION = 'quran-v18';
+const CACHE_VERSION = 'quran-v20';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 

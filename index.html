@@ -20,6 +20,15 @@
 </head>
 <body>
 
+<!-- Slim always-visible strip: collapses the menus away for a bigger reading
+     area (the default on phones); the chevron pulls the menus back down. -->
+<div class="focus-bar" id="focusBar">
+  <button id="btnFocusToggle" aria-label="إظهار القوائم أو إخفاؤها" title="إظهار / إخفاء القوائم">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <span class="focus-label" id="focusLabel"></span>
+</div>
+
 <!-- Header and global bar stick together as one unit; two separately-sticky
      elements at top:0 would overlap and hide the lower one. -->
 <div class="app-header">
@@ -157,6 +166,17 @@
 
   <!-- ===================== MEMORIZE ===================== -->
   <section id="tab-memorize" class="tab-panel">
+    <div class="search-wrap">
+      <div class="search-bar">
+        <span class="search-icon">🔍</span>
+        <input type="search" id="memSearchInput" autocomplete="off"
+               placeholder="ابحث برقم الصفحة، أو اسم السورة، أو جزء من آية...">
+        <button id="memBtnSearch" class="primary">بحث</button>
+        <button id="memBtnSearchClear" title="مسح">✕</button>
+      </div>
+      <div class="search-results" id="memSearchResults" hidden></div>
+    </div>
+
     <div class="nav-bar">
       <div class="nav-group">
         <label>نطاق الحفظ</label>
@@ -217,6 +237,11 @@
       </div>
     </div>
 
+    <div class="mem-page-nav" id="memPageNav" hidden>
+      <button id="btnMemPagePrev">‹ الصفحة السابقة</button>
+      <span id="memPageLabel"></span>
+      <button id="btnMemPageNext">الصفحة التالية ›</button>
+    </div>
     <div class="mem-status" id="memStatus"></div>
     <div class="read-layout">
       <div class="mushaf-page" id="memPage">
@@ -337,6 +362,7 @@
         <label class="chk"><input type="checkbox" id="alertAdhkar" checked> تنبيه الأذكار</label>
       </div>
       <div class="alerts-next" id="alertsNext"></div>
+      <div class="alerts-next" id="nativeAlertStatus"></div>
     </div>
 
     <div class="worship-grid">

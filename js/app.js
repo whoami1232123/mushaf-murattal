@@ -32,7 +32,29 @@
   initGlobalBar();
   registerServiceWorker();
   wireInstallPrompt();
+  initFocusMode();
 })();
+
+/* Focus reading mode: on phones the menus start collapsed so the mushaf gets
+   the whole screen; the chevron in the slim top bar pulls them back down.
+   Desktop keeps everything visible but can still toggle. */
+function initFocusMode() {
+  const compact = () =>
+    window.innerWidth < 768 || (window.NativeAlerts && NativeAlerts.isNative());
+  if (compact()) document.body.classList.add('focus-on');
+
+  document.getElementById('btnFocusToggle').addEventListener('click', () =>
+    document.body.classList.toggle('focus-on'));
+
+  // Picking something from a temporarily-expanded menu means "take me there",
+  // not "I want to browse settings" - drop back into reading right away.
+  const autoCollapse = () => { if (compact()) document.body.classList.add('focus-on'); };
+  ['selSurah', 'selJuz', 'selHizb'].forEach(id =>
+    document.getElementById(id).addEventListener('change', autoCollapse));
+  document.getElementById('tab-mushaf').addEventListener('click', e => {
+    if (e.target.closest('.search-jump, .search-hit')) autoCollapse();
+  });
+}
 
 /* Reciter choice and cache control live in a bar that is visible on every tab,
    so there is no settings screen to go looking for. */
@@ -64,10 +86,24 @@ function initGlobalBar() {
 }
 
 /* Offline support. Service workers need a secure context, so this is a no-op when
-   the page is opened straight off the filesystem via file:// . */
+   the page is opened straight off the filesystem via file:// . Never registered
+   inside the Android/iOS app either: assets are already local there, and a worker
+   only adds a stale-cache layer that survives APK updates. */
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol === 'file:') return;
+  const native = window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform();
+  if (native) {
+    // An older build may have left a worker + caches inside the WebView; rip
+    // them out so the bundled code is what actually runs from now on.
+    navigator.serviceWorker.getRegistrations()
+      .then(rs => Promise.all(rs.map(r => r.unregister())))
+      .catch(() => {});
+    if ('caches' in window) {
+      caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+    }
+    return;
+  }
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(() => { /* offline mode unavailable */ });
   });

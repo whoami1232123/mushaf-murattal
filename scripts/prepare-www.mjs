@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const www = join(root, 'www');
 
-const ASSETS = ['index.html', 'manifest.json', 'sw.js', 'css', 'js', 'icons'];
+const ASSETS = ['index.html', 'manifest.json', 'sw.js', 'css', 'js', 'icons', 'assets'];
 
 await rm(www, { recursive: true, force: true });
 await mkdir(www, { recursive: true });

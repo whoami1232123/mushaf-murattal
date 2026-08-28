@@ -18,7 +18,11 @@
  */
 const NativeAlerts = (() => {
   const DAYS_AHEAD = 7;
-  const CHANNEL_ID = 'prayer-adhkar';
+  /* v2 ids: Android freezes a channel's sound at creation, so adding the voice
+     clips required fresh channel ids (the old 'prayer-adhkar' gets deleted). */
+  const PRAYER_CHANNEL_ID = 'prayer-times-v2';
+  const ADHKAR_CHANNEL_ID = 'adhkar-times-v2';
+  const LEGACY_CHANNEL_ID = 'prayer-adhkar';
 
   const PRAYER_LABELS = {
     Fajr: 'صلاة الفجر', Dhuhr: 'صلاة الظهر', Asr: 'صلاة العصر',
@@ -43,16 +47,30 @@ const NativeAlerts = (() => {
     let hash = 0;
     const s = dateStr + ':' + key;
     for (let i = 0; i < s.length; i++) { hash = (hash * 31 + s.charCodeAt(i)) | 0; }
-    return Math.abs(hash) || 1;
+    // Mask off the sign bit instead of Math.abs(): abs(-2147483648) overflows
+    // 32-bit signed range by one, and Android's scheduler rejects the whole
+    // batch if a single id in it is invalid — silently dropping every alarm
+    // in that call, including the other prayers/adhkar scheduled alongside it.
+    return (hash & 0x7fffffff) || 1;
   }
 
   async function ensureChannel() {
-    try {
-      await plugin().createChannel({
-        id: CHANNEL_ID, name: 'الصلاة والأذكار',
-        description: 'تنبيهات مواقيت الصلاة والأذكار', importance: 5, visibility: 1,
-      });
-    } catch (err) { /* channel may already exist */ }
+    try { await plugin().deleteChannel({ id: LEGACY_CHANNEL_ID }); } catch (err) { /* gone already */ }
+    const defs = [
+      { id: PRAYER_CHANNEL_ID, sound: 'salah_alert' },
+      { id: ADHKAR_CHANNEL_ID, sound: 'adhkar_alert' },
+    ];
+    for (const c of defs) {
+      try {
+        await plugin().createChannel({
+          id: c.id, name: 'الصلاة والأذكار',
+          description: 'تنبيهات مواقيت الصلاة والأذكار بصوت رجالي',
+          importance: 5, visibility: 1,
+          // Bundled male-voice clip from res/raw — plays even with the app closed.
+          sound: c.sound + '.mp3',
+        });
+      } catch (err) { /* channel may already exist */ }
+    }
   }
 
   /** Returns true if exact-alarm permission is already granted (no redirect). */
@@ -71,9 +89,16 @@ const NativeAlerts = (() => {
       const req = await plugin().requestPermissions();
       if (req.display !== 'granted') return { granted: false, exact: false };
     }
-    const exact = await _hasExactAlarm();
-    // Do NOT redirect to settings here — that would interrupt the user flow.
-    // scheduleUpcoming will use allowWhileIdle only when exact alarms are available.
+    let exact = await _hasExactAlarm();
+    // Android 12 needs a one-time user grant for SCHEDULE_EXACT_ALARM; without
+    // it alarms become inexact and can slip by hours. The plugin pops the
+    // system dialog - the only place this grant can be asked for.
+    if (!exact && typeof plugin().changeExactNotificationSetting === 'function') {
+      try {
+        const r = await plugin().changeExactNotificationSetting(true);
+        exact = r && r.exact_alarm === 'granted';
+      } catch (err) { /* fall back to inexact */ }
+    }
     return { granted: true, exact };
   }
 
@@ -125,7 +150,7 @@ const NativeAlerts = (() => {
             id: idFor(dateKey, 'p:' + key),
             title: `حان الآن موعد ${PRAYER_LABELS[key]}`,
             body: timings[key],
-            channelId: CHANNEL_ID,
+            channelId: PRAYER_CHANNEL_ID,
             // allowWhileIdle fires even in Doze mode but needs SCHEDULE_EXACT_ALARM
             // on Android 12 (API 31-32). Fall back to inexact if not granted — the
             // notification may arrive a few minutes late but will always fire.
@@ -143,7 +168,7 @@ const NativeAlerts = (() => {
             id: idFor(dateKey, 'a:' + key),
             title: `حان وقت ${a.label}`,
             body: 'اضغط لفتح الأذكار',
-            channelId: CHANNEL_ID,
+            channelId: ADHKAR_CHANNEL_ID,
             schedule: { at, allowWhileIdle: exact },
           });
         }
@@ -154,5 +179,27 @@ const NativeAlerts = (() => {
     return { scheduled: true, count: notifications.length, days: daysScheduled };
   }
 
-  return { isNative, scheduleUpcoming };
+  /**
+   * End-to-end pipeline check: a real OS notification ~10s out through the same
+   * channel the prayer alarms use. If THIS never arrives, the problem is on the
+   * device (battery saver / notifications blocked), not in our scheduling.
+   */
+  async function scheduleTest() {
+    if (!isNative()) return { scheduled: false, reason: 'not-native' };
+    const { granted } = await ensurePermissions();
+    if (!granted) return { scheduled: false, reason: 'permission-denied' };
+    await ensureChannel();
+    await plugin().schedule({
+      notifications: [{
+        id: 2147483000,
+        title: '🔔 إشعار تجريبي',
+        body: 'وصل الإشعار بنجاح — التنبيهات تعمل على هذا الجهاز',
+        channelId: PRAYER_CHANNEL_ID,
+        schedule: { at: new Date(Date.now() + 10000), allowWhileIdle: true },
+      }],
+    });
+    return { scheduled: true };
+  }
+
+  return { isNative, scheduleUpcoming, scheduleTest };
 })();
